@@ -36,6 +36,8 @@ Subsequent development sessions can use `npm start`. `eas.json` also provides de
 
 The top bar stays visible while scrolling. Main controls the LR mix; Bus1–Bus6 select monitor sends, and FX1–FX4 select effect sends. Each send mix shows its own output master. On small screens, swipe the tab row horizontally; the Settings gear stays on the right. Input mute buttons affect every mix, including when a send tab is selected.
 
+Each fader includes a compact, read-only signal overview: input gain/48 V, six bus-send bars, four FX-send bars, gate/dynamics and EQ enable states, and main LR pan position. Return summaries show bus sends, EQ, and pan, omitting input-only preamp/phantom and gate/dynamics stages. Tap it to open a focused view with just that fader on the left and channel controls on the right. Channel controls have Default (gain, phantom, pan and sends), Dynamics, and EQ tabs. Dynamics and EQ currently control bypass, using the mixer’s existing processing settings. Gain and phantom changes are demo-only. Back to mixer restores all faders; selecting another top-bar mix also closes the focused view. Gain and phantom values are demo-only placeholders for now; live sessions show a dash until preamp routing and readback are implemented. The EQ line is a stage indicator, not a frequency-response plot.
+
 ## Implemented controls
 
 - 16 mono input faders, mute, pan, and channel names.

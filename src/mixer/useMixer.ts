@@ -16,6 +16,7 @@ export function useMixer() {
   function demo() {
     disconnect(); setError(''); const initial: Record<string, number | string> = {};
     [...strips, master].forEach((s, i) => { initial[`${s.id}/mix/fader`] = .65 - (i % 4) * .06; initial[`${s.id}/mix/on`] = 1; initial[`${s.id}/mix/pan`] = .5; initial[`${s.id}/config/name`] = s.label;
+      if (s.group === 'Inputs') { initial[`${s.id}/overview/gain`] = 12 + (i % 4) * 3; initial[`${s.id}/overview/phantom`] = 0; }
       ['eq/on','gate/on','dyn/on','preamp/hpon'].forEach(p => initial[`${s.id}/${p}`] = 0);
       for (let n = 1; n <= 10; n++) initial[`${s.id}/mix/${String(n).padStart(2,'0')}/level`] = 0;
     }); setValues(initial); mode.current = 'demo'; setStatus('demo');

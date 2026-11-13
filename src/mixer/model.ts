@@ -10,6 +10,8 @@ export const master: Strip = { id: '/lr', label: 'MAIN LR', group: 'Buses', colo
 export const queryPaths = () => [...strips, master].flatMap(strip => {
   const paths = [`${strip.id}/config/name`, ...['fader', 'on', 'pan'].map(p => `${strip.id}/mix/${p}`)];
   if (strip.group === 'Inputs') paths.push(...['eq/on', 'gate/on', 'dyn/on', 'preamp/hpon'].map(p => `${strip.id}/${p}`));
+  if (strip.group === 'Returns') paths.push(`${strip.id}/eq/on`);
+  if (strip.id === '/lr' || strip.id.startsWith('/bus/')) paths.push(`${strip.id}/eq/on`, `${strip.id}/dyn/on`);
   const sendCount = strip.group === 'Inputs' ? 10 : strip.group === 'Returns' ? 6 : 0;
   for (let send = 1; send <= sendCount; send++) paths.push(`${strip.id}/mix/${String(send).padStart(2, '0')}/level`);
   return paths;
