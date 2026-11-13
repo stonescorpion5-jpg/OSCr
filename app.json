@@ -1,13 +1,17 @@
 {
   "expo": {
     "name": "OSCr",
-    "slug": "OSCr",
+    "slug": "oscr",
     "version": "1.0.0",
-    "orientation": "portrait",
+    "orientation": "default",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "dark",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.oscr.mixer",
+      "infoPlist": {
+        "NSLocalNetworkUsageDescription": "OSCr connects to your XR18 mixer on your local network using OSC to read and adjust your mix."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -16,7 +20,13 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.oscr.mixer",
+      "permissions": [
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.ACCESS_WIFI_STATE"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
