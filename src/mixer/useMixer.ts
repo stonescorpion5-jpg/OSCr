@@ -1,3 +1,6 @@
+import { soloPath } from './solo';
+import { dynamicsWire, hasCompressor, type DynamicsKind } from './dynamics';
+import { bandCount, frequencyToWire, gainToWire, qToWire } from './eq';
 import { useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 import { createTransport, type Transport } from './transport';
@@ -16,8 +19,32 @@ export function useMixer() {
   function demo() {
     disconnect(); setError(''); const initial: Record<string, number | string> = {};
     [...strips, master].forEach((s, i) => { initial[`${s.id}/mix/fader`] = .65 - (i % 4) * .06; initial[`${s.id}/mix/on`] = 1; initial[`${s.id}/mix/pan`] = .5; initial[`${s.id}/config/name`] = s.label;
+      const solo = soloPath(s.id); if (solo) initial[solo] = 0;
       if (s.group === 'Inputs') { initial[`${s.id}/overview/gain`] = 12 + (i % 4) * 3; initial[`${s.id}/overview/phantom`] = 0; }
       ['eq/on','gate/on','dyn/on','preamp/hpon'].forEach(p => initial[`${s.id}/${p}`] = 0);
+      const processors: DynamicsKind[] = s.group === 'Inputs' ? ['gate', 'dyn'] : hasCompressor(s.id) ? ['dyn'] : [];
+      processors.forEach(kind => {
+        const root = `${s.id}/${kind}`;
+        initial[`${root}/on`] = 1;
+        initial[`${root}/mode`] = kind === 'gate' ? 3 : 0;
+        initial[`${root}/thr`] = dynamicsWire(kind, 'thr', kind === 'gate' ? -40 : -18);
+        initial[`${root}/attack`] = dynamicsWire(kind, 'attack', kind === 'gate' ? 5 : 15);
+        initial[`${root}/hold`] = dynamicsWire(kind, 'hold', 80);
+        initial[`${root}/release`] = dynamicsWire(kind, 'release', 220);
+        if (kind === 'gate') initial[`${root}/range`] = dynamicsWire(kind, 'range', 45);
+        else { initial[`${root}/ratio`] = 6; initial[`${root}/mgain`] = dynamicsWire(kind, 'mgain', 0); }
+      });
+      if (bandCount(s.id)) {
+        initial[`${s.id}/eq/on`] = 1;
+        initial[`${s.id}/eq/mode`] = 0;
+        for (let band = 1; band <= bandCount(s.id); band++) {
+          const root = `${s.id}/eq/${band}`;
+          initial[`${root}/type`] = 2;
+          initial[`${root}/f`] = frequencyToWire([60, 140, 1400, 5000, 9000, 15000][band - 1]);
+          initial[`${root}/g`] = gainToWire([3, -4, 4, -3, 0, 0][band - 1]);
+          initial[`${root}/q`] = qToWire(1.4);
+        }
+      }
       for (let n = 1; n <= 10; n++) initial[`${s.id}/mix/${String(n).padStart(2,'0')}/level`] = 0;
     }); setValues(initial); mode.current = 'demo'; setStatus('demo');
   }

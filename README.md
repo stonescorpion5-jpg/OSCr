@@ -36,11 +36,11 @@ Subsequent development sessions can use `npm start`. `eas.json` also provides de
 
 The top bar stays visible while scrolling. Main controls the LR mix; Bus1–Bus6 select monitor sends, and FX1–FX4 select effect sends. Each send mix shows its own output master. On small screens, swipe the tab row horizontally; the Settings gear stays on the right. Input mute buttons affect every mix, including when a send tab is selected.
 
-Each fader includes a compact, read-only signal overview: input gain/48 V, six bus-send bars, four FX-send bars, gate/dynamics and EQ enable states, and main LR pan position. Return summaries show bus sends, EQ, and pan, omitting input-only preamp/phantom and gate/dynamics stages. Tap it to open a focused view with just that fader on the left and channel controls on the right. Channel controls have Default (gain, phantom, pan and sends), Dynamics, and EQ tabs. Dynamics and EQ currently control bypass, using the mixer’s existing processing settings. Gain and phantom changes are demo-only. Back to mixer restores all faders; selecting another top-bar mix also closes the focused view. Gain and phantom values are demo-only placeholders for now; live sessions show a dash until preamp routing and readback are implemented. The EQ line is a stage indicator, not a frequency-response plot.
+Each fader includes a compact, read-only signal overview: input gain/48 V, six bus-send bars, four FX-send bars, gate/dynamics and EQ enable states, and main LR pan position. Return summaries show bus sends, EQ, and pan, omitting input-only preamp/phantom and gate/dynamics stages. Tap it to open a focused view with just that fader on the left and channel controls on the right. Channel controls have General (gain, phantom, pan and sends), EQ, and Dynamics tabs. Dynamics shows gate and compressor together (side by side on wide screens, stacked on narrow screens), with independent bypass, gate/expander/ducker modes, thresholds, gate range, compressor ratio/makeup, and attack/hold/release controls. Its graphs show a modeled hard-knee transfer and a schematic timing envelope, not live levels or gain reduction. EQ provides a draggable, logarithmic frequency response graph without RTA, per-band frequency/gain/Q and filter type controls, plus EQ bypass. Channels/returns have four bands; Main and buses have six. Bus/Main editing requires PEQ mode, which the app does not switch automatically. The displayed response is a 48 kHz biquad model; Vintage is approximated as a bell and the separate input low-cut stage is not plotted. Band controls remain disabled until mixer readback arrives. Gain and phantom changes are demo-only. Back to mixer restores all faders; selecting another top-bar mix also closes the focused view. Gain and phantom values are demo-only placeholders for now; live sessions show a dash until preamp routing and readback are implemented. The EQ line is a stage indicator, not a frequency-response plot.
 
 ## Implemented controls
 
-- 16 mono input faders, mute, pan, and channel names.
+- 16 mono input faders, mute, solo, pan, and channel names.
 - Stereo auxiliary input 17/18 and four stereo FX return levels, mute, and pan.
 - Six bus masters, four FX send masters, and main LR level/mute.
 - Per-input send levels to six monitor buses and four FX buses.
@@ -50,7 +50,7 @@ Each fader includes a compact, read-only signal overview: input gain/48 V, six b
 
 Mute uses `/mix/on`: **0 means muted**, 1 means on. Fader and send values are normalized 0–1 with the XR18 piecewise dB taper. Set 0 dB uses 0.75. Fader readings represent control positions, **not audio meters**.
 
-This is a foundation, not a replacement for every X AIR Edit feature. Live meters, detailed EQ/dynamics parameters, preamp gain/phantom, solo, scene recall, routing, FX algorithms, stereo-link handling, discovery, and saved connection profiles are not implemented. Use X AIR Edit for those settings. Linked-channel behavior follows the mixer's own configuration.
+This is a foundation, not a replacement for every X AIR Edit feature. Live meters, advanced dynamics knee/detection/sidechain controls, preamp gain/phantom, scene recall, routing, FX algorithms, stereo-link handling, discovery, and saved connection profiles are not implemented. Use X AIR Edit for those settings. Linked-channel behavior follows the mixer's own configuration.
 
 ## Checks
 
@@ -73,3 +73,5 @@ Tests cover OSC byte layout, query and mute types, identity/string decoding, mal
 - `src/mixer/useMixer.ts`: session lifecycle, state sync, and demo state.
 
 Protocol reference: [Music Tribe X AIR Remote Control Protocol](https://mediadl.musictribe.com/download/software/behringer/XAIR/X%20AIR%20Remote%20Control%20Protocol.pdf). Native networking: [react-native-udp](https://github.com/tradle/react-native-udp). Build setup: [Expo development builds](https://docs.expo.dev/develop/development-builds/introduction/).
+
+Solo buttons sit above each signal overview and use the XR18 `/-stat/solosw/NN` addresses. They stay disabled until readback arrives and highlight amber when active. Solo follows the mixer’s monitor configuration and exclusive-solo preference; demo solo changes only local state. Address mapping reference: [XR18 parameter overview](https://www.scribd.com/document/819735371/Parameters). Hardware solo behavior has not been verified here.

@@ -2,10 +2,13 @@ import React, { useState } from 'react';
 import { StyleSheet, Text, View, ScrollView, Pressable, TextInput, Modal, useWindowDimensions } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import Slider from './src/components/Slider';
+import EqEditor from './src/components/EqEditor';
+import DynamicsEditor from './src/components/DynamicsEditor';
 import { StatusBar } from 'expo-status-bar';
 import { useMixer } from './src/mixer/useMixer';
 import { strips, master, type Strip } from './src/mixer/model';
 import { levelLabel } from './src/mixer/osc';
+import { soloPath } from './src/mixer/solo';
 const mixTabs = [
   { label: 'Main', send: null, master },
   ...Array.from({ length: 6 }, (_, i) => ({ label: `Bus${i + 1}`, send: i + 1, master: strips.find(strip => strip.id === `/bus/${i + 1}`)! })),
@@ -14,8 +17,8 @@ const mixTabs = [
 type MixTab = (typeof mixTabs)[number];
 const C = { bg: '#0b1015', panel: '#141c24', border: '#26323d', text: '#edf4f6', muted: '#8b9ba9', green: '#6de0bc', red: '#fa7878' };
 type Mixer = ReturnType<typeof useMixer>;
-function Button({ text, onPress, active = false, disabled = false }: { text: string; onPress: () => void; active?: boolean; disabled?: boolean }) {
-  return <Pressable accessibilityRole="button" disabled={disabled} onPress={onPress} style={[s.button, active && s.active, disabled && { opacity: .35 }]}><Text style={[s.buttonText, active && { color: C.green }]}>{text}</Text></Pressable>;
+function Button({ text, onPress, active = false, disabled = false, tone }: { text: string; onPress: () => void; active?: boolean; disabled?: boolean; tone?: 'red' }) {
+  return <Pressable accessibilityRole="button" disabled={disabled} onPress={onPress} style={[s.button, active && s.active, active && tone === 'red' && { backgroundColor: '#482427', borderColor: C.red }, disabled && { opacity: .35 }]}><Text style={[s.buttonText, active && { color: tone === 'red' ? C.red : C.green }]}>{text}</Text></Pressable>;
 }
 function SignalOverview({ strip, mixer, onSelect }: { strip: Strip; mixer: Mixer; onSelect: () => void }) {
   const input = strip.group === 'Inputs';
@@ -33,7 +36,7 @@ function SignalOverview({ strip, mixer, onSelect }: { strip: Strip; mixer: Mixer
     })}</View>;
   }
   return <Pressable accessibilityRole="button" accessibilityLabel={`${strip.label} signal overview`} accessibilityHint="Open focused channel controls" onPress={onSelect} style={s.signalBox}>
-    {!isReturn && <View style={s.signalRow}><Text style={s.signalLabel}>GAIN</Text><Text style={s.signalValue}>{input && typeof gain === 'number' ? `${gain.toFixed(1)}` : '—'}</Text><Text style={[s.phantom, phantom === 1 && { color: '#f0bc73', backgroundColor: '#493d27' }]}>{input ? `48V ${phantom === 1 ? 'ON' : phantom === 0 ? 'OFF' : '—'}` : '48V N/A'}</Text></View>}
+    {!isReturn && <View style={s.signalRow}><Text style={s.signalLabel}>GAIN</Text><Text style={s.signalValue}>{input && typeof gain === 'number' ? `${gain.toFixed(1)}` : '—'}</Text><Text style={[s.phantom, phantom === 1 && { color: C.red, backgroundColor: '#482427' }]}>{input ? `48V ${phantom === 1 ? 'ON' : phantom === 0 ? 'OFF' : '—'}` : '48V N/A'}</Text></View>}
     <View style={s.signalRow}><Text style={s.signalLabel}>SEND</Text>{sends(1, 6)}</View>
     {!isReturn && <View style={s.signalRow}><Text style={s.signalLabel}>FX</Text>{sends(7, 4)}</View>}
     {!isReturn && <View style={s.signalRow}>{[['GATE', 'gate/on'], ['DYN', 'dyn/on']].map(([label, path]) => <View key={path} style={s.processor}><View style={[s.stageDot, status(path) === 'ON' && { backgroundColor: strip.color }]} /><Text style={s.signalLabel}>{label}</Text><Text style={s.stageState}>{status(path)}</Text></View>)}</View>}
@@ -45,10 +48,13 @@ function Fader({ strip, mixer, selected, onSelect, onInspect, mix }: { strip: St
   const base = strip.id; const levelPath = mix?.send ? `${base}/mix/${String(mix.send).padStart(2, '0')}/level` : `${base}/mix/fader`;
   const levelName = mix?.send ? `${strip.label} to ${mix.label}` : `${strip.label} level`;
   const raw = mixer.values[levelPath]; const value = typeof raw === 'number' ? raw : undefined;
-  const on = mixer.values[`${base}/mix/on`]; const pan = mixer.values[`${base}/mix/pan`];
+  const on = mixer.values[`${base}/mix/on`];
+  const soloAddress = soloPath(base);
+  const solo = soloAddress ? mixer.values[soloAddress] : undefined;
   const name = mixer.values[`${base}/config/name`];
   return <View style={[s.strip, selected && { borderColor: strip.color }]}>
     <Pressable accessibilityRole="button" onPress={onSelect} style={[s.scribble, { borderTopColor: strip.color }]}><Text style={[s.eyebrow, { color: strip.color }]}>{strip.label}</Text><Text numberOfLines={1} style={s.channelName}>{name || 'Untitled'}</Text></Pressable>
+    <Pressable accessibilityRole="button" accessibilityLabel={`${strip.label} solo`} accessibilityState={{ selected: solo === 1 }} disabled={!soloAddress || (solo !== 0 && solo !== 1)} onPress={() => { if (soloAddress) mixer.write(soloAddress, solo === 1 ? 0 : 1, 'i'); }} style={[s.soloButton, solo === 1 && s.soloActive, solo === undefined && { opacity: .35 }]}><Text style={[s.soloText, solo === 1 && { color: '#f7cf74' }]}>SOLO</Text></Pressable>
     <SignalOverview strip={strip} mixer={mixer} onSelect={onInspect ?? onSelect} />
     <Text style={s.db}>{value === undefined ? '—' : levelLabel(value)} <Text style={s.unit}>dB</Text></Text>
     <View style={s.faderWell}>
@@ -56,7 +62,6 @@ function Fader({ strip, mixer, selected, onSelect, onInspect, mix }: { strip: St
       <Slider accessibilityLabel={levelName} style={s.verticalSlider} minimumValue={0} maximumValue={1} value={value ?? 0} disabled={value === undefined} minimumTrackTintColor={strip.color} maximumTrackTintColor="#303f4b" thumbTintColor="#edf4f6" onValueChange={v => mixer.write(levelPath, v)} />
     </View>
     <Button text={on === 0 ? 'MUTED' : 'MUTE'} active={on === 0} disabled={on === undefined} onPress={() => mixer.write(`${base}/mix/on`, on === 0 ? 1 : 0, 'i')} />
-    {!mix?.send && strip.group !== 'Buses' && <><View style={s.panLabel}><Text style={s.small}>L</Text><Text style={s.small}>PAN</Text><Text style={s.small}>R</Text></View><Slider accessibilityLabel={`${strip.label} pan`} value={typeof pan === 'number' ? pan : .5} disabled={pan === undefined} minimumValue={0} maximumValue={1} minimumTrackTintColor={strip.color} maximumTrackTintColor={C.border} thumbTintColor={strip.color} onValueChange={v => mixer.write(`${base}/mix/pan`, v)} /></>}
     <Pressable accessibilityRole="button" onPress={() => value !== undefined && mixer.write(levelPath, .75)} disabled={value === undefined}><Text style={s.reset}>SET 0 dB</Text></Pressable>
   </View>;
 }
@@ -68,7 +73,7 @@ function ChannelDetails({ strip, mixer, onBack }: { strip: Strip; mixer: Mixer; 
   const namePath = `${strip.id}/config/name`;
   const current = mixer.values[namePath];
   const [draft, setDraft] = useState(String(current || ''));
-  const [tab, setTab] = useState<'Default' | 'Dynamics' | 'EQ'>('Default');
+  const [tab, setTab] = useState<'General' | 'EQ' | 'Dynamics'>('General');
   const gainPath = `${strip.id}/overview/gain`;
   const phantomPath = `${strip.id}/overview/phantom`;
   const gain = mixer.values[gainPath];
@@ -77,31 +82,35 @@ function ChannelDetails({ strip, mixer, onBack }: { strip: Strip; mixer: Mixer; 
   const pan = mixer.values[panPath];
   const panLabel = typeof pan !== 'number' ? '—' : Math.abs(pan - .5) < .005 ? 'Center' : `${pan < .5 ? 'L' : 'R'} ${Math.round(Math.abs(pan - .5) * 200)}`;
   const sendCount = input ? 10 : isReturn ? 6 : 0;
-  function toggle(label: string, path: string) {
-    const value = mixer.values[`${strip.id}/${path}`];
-    return <Button text={`${label} ${value === 1 ? 'ON' : value === 0 ? 'OFF' : '—'}`} active={value === 1} disabled={value === undefined} onPress={() => mixer.write(`${strip.id}/${path}`, value === 1 ? 0 : 1, 'i')} />;
-  }
   return <View style={s.details}>
     <View style={s.detailsHeader}><Text style={[s.sectionTitle, { marginBottom: 0, flex: 1 }]}>{strip.label} / Channel controls</Text><Button text="← Back to mixer" onPress={onBack} /></View>
-    <View style={s.detailTabs}>{(['Default', 'Dynamics', 'EQ'] as const).map(item => <Pressable key={item} accessibilityRole="tab" accessibilityState={{ selected: tab === item, disabled: item === 'Dynamics' && !hasDynamics || item === 'EQ' && !hasEq }} disabled={item === 'Dynamics' && !hasDynamics || item === 'EQ' && !hasEq} onPress={() => setTab(item)} style={[s.topTab, tab === item && s.topTabSelected, (item === 'Dynamics' && !hasDynamics || item === 'EQ' && !hasEq) && { opacity: .35 }]}><Text style={[s.topTabText, tab === item && s.topTabTextSelected]}>{item}</Text></Pressable>)}</View>
-    {tab === 'Default' && <View accessibilityLabel="Default channel controls">
-      <View style={s.row}><TextInput accessibilityLabel="Channel name" maxLength={12} placeholder="Channel name" placeholderTextColor={C.muted} value={draft} onChangeText={setDraft} style={[s.input, { flex: 1 }]} /><Button text="Save name" disabled={current === undefined} onPress={() => mixer.write(namePath, draft.trim(), 's')} /></View>
+    <View style={s.detailTabs}>{(['General', 'EQ', 'Dynamics'] as const).map(item => <Pressable key={item} accessibilityRole="tab" accessibilityState={{ selected: tab === item, disabled: item === 'Dynamics' && !hasDynamics || item === 'EQ' && !hasEq }} disabled={item === 'Dynamics' && !hasDynamics || item === 'EQ' && !hasEq} onPress={() => setTab(item)} style={[s.topTab, tab === item && s.topTabSelected, (item === 'Dynamics' && !hasDynamics || item === 'EQ' && !hasEq) && { opacity: .35 }]}><Text style={[s.topTabText, tab === item && s.topTabTextSelected]}>{item}</Text></Pressable>)}</View>
+    {tab === 'General' && <View accessibilityLabel="General channel controls">
+      <View style={s.row}><TextInput accessibilityLabel="Channel name" maxLength={12} placeholder="Channel name" placeholderTextColor={C.muted} value={draft} onChangeText={setDraft} style={[s.input, { flex: 1 }]} /><Button text="Save" disabled={current === undefined} onPress={() => mixer.write(namePath, draft.trim(), 's')} /></View>
       <View style={[s.wrap, { marginVertical: 18 }]}>
         {input && <>
           <View style={s.controlCard}><View style={s.row}><Text style={s.body}>Gain</Text><Text style={s.small}>{typeof gain === 'number' ? `${gain.toFixed(1)} dB` : '—'}</Text></View><Slider accessibilityLabel={`${strip.label} input gain`} minimumValue={-12} maximumValue={60} step={0.5} value={typeof gain === 'number' ? gain : -12} disabled={mixer.status !== 'demo'} minimumTrackTintColor={C.green} maximumTrackTintColor={C.border} thumbTintColor={C.green} onValueChange={value => { if (mixer.status === 'demo') mixer.write(gainPath, Math.round(value * 2) / 2); }} /></View>
-          <View style={s.controlCard}><Text style={[s.body, { marginBottom: 12 }]}>Phantom power</Text><Button text={`48V ${phantom === 1 ? 'ON' : phantom === 0 ? 'OFF' : '—'}`} active={phantom === 1} disabled={mixer.status !== 'demo'} onPress={() => { if (mixer.status === 'demo') mixer.write(phantomPath, phantom === 1 ? 0 : 1, 'i'); }} /></View>
+          <View style={s.controlCard}><Text style={[s.body, { marginBottom: 12 }]}>Phantom power</Text><Button text={`48V ${phantom === 1 ? 'ON' : phantom === 0 ? 'OFF' : '—'}`} active={phantom === 1} tone="red" disabled={mixer.status !== 'demo'} onPress={() => { if (mixer.status === 'demo') mixer.write(phantomPath, phantom === 1 ? 0 : 1, 'i'); }} /></View>
         </>}
         {!strip.id.startsWith('/fxsend/') && <View style={s.controlCard}><View style={s.row}><Text style={s.body}>Pan / balance LR</Text><Text style={s.small}>{panLabel}</Text></View><Slider accessibilityLabel={`${strip.label} channel pan`} minimumValue={0} maximumValue={1} value={typeof pan === 'number' ? pan : .5} disabled={pan === undefined} minimumTrackTintColor={C.green} maximumTrackTintColor={C.border} thumbTintColor={C.green} onValueChange={value => mixer.write(panPath, value)} /></View>}
       </View>
       {input && mixer.status !== 'demo' && <Text style={s.description}>Gain and 48V controls are available in demo mode; live preamp readback is pending.</Text>}
-      {sendCount > 0 && <><Text style={s.sectionTitle}>Sends</Text><View style={s.wrap}>{Array.from({ length: sendCount }, (_, i) => {
+      {sendCount > 0 && <><Text style={s.sectionTitle}>Sends</Text><ScrollView horizontal contentContainerStyle={{ gap: 8, paddingBottom: 10 }}>{Array.from({ length: sendCount }, (_, i) => {
         const path = `${strip.id}/mix/${String(i + 1).padStart(2, '0')}/level`;
         const value = mixer.values[path];
-        return <View key={path} style={s.send}><View style={s.row}><Text style={s.body}>{i < 6 ? `BUS ${i + 1}` : `FX ${i - 5}`}</Text><Text style={s.small}>{typeof value === 'number' ? `${levelLabel(value)} dB` : '—'}</Text></View><Slider accessibilityLabel={`${strip.label} ${i < 6 ? 'bus' : 'FX'} ${i < 6 ? i + 1 : i - 5} send`} value={typeof value === 'number' ? value : 0} disabled={value === undefined} minimumValue={0} maximumValue={1} minimumTrackTintColor={C.green} maximumTrackTintColor={C.border} thumbTintColor={C.green} onValueChange={v => mixer.write(path, v)} /></View>;
-      })}</View></>}
+        const tint = i < 6 ? C.green : '#c49bff';
+        return <View key={path} style={s.send}>
+          <Text style={[s.sendTitle, { color: tint }]}>{i < 6 ? `BUS ${i + 1}` : `FX ${i - 5}`}</Text>
+          <Text style={s.sendValue}>{typeof value === 'number' ? `${levelLabel(value)} dB` : '—'}</Text>
+          <View style={s.sendWell}>
+            <View style={s.sendScale}>{['+10', '0', '−10', '−30', '−∞'].map(mark => <Text key={mark} style={s.scaleText}>{mark}</Text>)}</View>
+            <Slider accessibilityLabel={`${strip.label} ${i < 6 ? 'bus' : 'FX'} ${i < 6 ? i + 1 : i - 5} send`} style={s.sendSlider} value={typeof value === 'number' ? value : 0} disabled={value === undefined} minimumValue={0} maximumValue={1} minimumTrackTintColor={tint} maximumTrackTintColor={C.border} thumbTintColor={tint} onValueChange={v => mixer.write(path, v)} />
+          </View>
+        </View>;
+      })}</ScrollView></>}
     </View>}
-    {tab === 'Dynamics' && <View accessibilityLabel="Dynamics channel controls"><Text style={s.sectionTitle}>Dynamics</Text><View style={s.wrap}>{input && <View style={s.controlCard}><Text style={s.controlTitle}>Gate</Text>{toggle('Gate', 'gate/on')}</View>}<View style={s.controlCard}><Text style={s.controlTitle}>Compressor</Text>{toggle('Compressor', 'dyn/on')}</View></View><Text style={s.description}>Enable or bypass the mixer’s existing dynamics settings.</Text></View>}
-    {tab === 'EQ' && <View accessibilityLabel="EQ channel controls"><Text style={s.sectionTitle}>Equalizer</Text><View style={s.wrap}><View style={s.controlCard}><Text style={s.controlTitle}>EQ</Text>{toggle('EQ', 'eq/on')}</View>{input && <View style={s.controlCard}><Text style={s.controlTitle}>Low cut</Text>{toggle('Low cut', 'preamp/hpon')}</View>}</View><Text style={s.description}>Enable or bypass the mixer’s existing EQ settings.</Text></View>}
+    {tab === 'Dynamics' && <DynamicsEditor id={strip.id} mixer={mixer} />}
+    {tab === 'EQ' && <EqEditor id={strip.id} mixer={mixer} />}
   </View>;
 }
 function MixerApp() {
@@ -172,6 +181,9 @@ const s = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }, wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   statusBar: { padding: 15, borderWidth: 1, borderColor: C.border, borderRadius: 10, gap: 8, flexDirection: 'row', justifyContent: 'space-between', flexWrap: 'wrap', backgroundColor: C.panel }, dot: { width: 7, height: 7, borderRadius: 4 }, body: { color: C.text, fontSize: 13 }, small: { color: C.muted, fontSize: 11 }, eyebrow: { color: C.muted, fontSize: 10, fontWeight: '700', letterSpacing: 1.8 }, title: { color: C.text, fontSize: 25, fontWeight: '600', marginTop: 6, marginBottom: 12 },
   welcome: { marginTop: 24, padding: 26, borderRadius: 14, borderWidth: 1, borderColor: '#2b4d45', backgroundColor: '#13241f' }, hero: { color: C.text, fontSize: 36, fontWeight: '600', letterSpacing: -1 }, description: { color: C.muted, fontSize: 13, lineHeight: 21, marginVertical: 14 },
+  soloButton: { minHeight: 36, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: C.border, borderRadius: 6, backgroundColor: '#1b2630', marginBottom: 10 },
+  soloActive: { backgroundColor: '#483b21', borderColor: '#c29e4d' },
+  soloText: { color: C.muted, fontSize: 10, fontWeight: '700', letterSpacing: 1.5 },
   signalBox: { minHeight: 158, justifyContent: 'space-between', borderWidth: 1, borderColor: C.border, backgroundColor: '#0e151c', borderRadius: 7, paddingHorizontal: 6, marginBottom: 10 },
   signalRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 4, minHeight: 26, borderBottomWidth: 1, borderBottomColor: '#202c35' },
   signalLastRow: { borderBottomWidth: 0 },
@@ -190,10 +202,15 @@ const s = StyleSheet.create({
   detailTabs: { flexDirection: 'row', gap: 6, borderBottomWidth: 1, borderBottomColor: C.border, paddingBottom: 12, marginBottom: 18 },
   controlCard: { padding: 16, width: 260, maxWidth: '100%', borderRadius: 8, borderWidth: 1, borderColor: C.border, backgroundColor: C.bg },
   controlTitle: { color: C.text, fontSize: 14, fontWeight: '600', marginBottom: 14 },
+  sendTitle: { fontSize: 11, fontWeight: '700', letterSpacing: 1, textAlign: 'center' },
+  sendValue: { color: C.text, fontSize: 12, textAlign: 'center', fontVariant: ['tabular-nums'], marginTop: 10 },
+  sendWell: { width: 78, height: 220, position: 'relative', marginTop: 12 },
+  sendScale: { position: 'absolute', left: 0, top: 12, bottom: 12, justifyContent: 'space-between' },
+  sendSlider: { width: 208, height: 40, position: 'absolute', left: -65, top: 90, transform: [{ rotate: '-90deg' }] },
   detailsHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 14 },
   focusLayout: { flexDirection: 'row', alignItems: 'flex-start', gap: 18, width: '100%' },
   focusFader: { width: 132, flexShrink: 0 },
   focusControls: { flex: 1, minWidth: 320 },
-  details: { padding: 20, backgroundColor: C.panel, borderWidth: 1, borderColor: C.border, borderRadius: 12 }, sectionTitle: { color: C.text, fontSize: 17, fontWeight: '600', marginBottom: 14 }, input: { borderWidth: 1, borderColor: C.border, borderRadius: 8, backgroundColor: C.bg, color: C.text, padding: 14, minWidth: 120, marginVertical: 8 }, send: { width: 220, padding: 12, borderRadius: 8, backgroundColor: C.bg }, footer: { color: '#647684', fontSize: 10, lineHeight: 20, letterSpacing: 1, marginTop: 28 }, mobileMaster: { flexDirection: 'row', alignItems: 'center' },
+  details: { padding: 20, backgroundColor: C.panel, borderWidth: 1, borderColor: C.border, borderRadius: 12 }, sectionTitle: { color: C.text, fontSize: 17, fontWeight: '600', marginBottom: 14 }, input: { borderWidth: 1, borderColor: C.border, borderRadius: 8, backgroundColor: C.bg, color: C.text, padding: 14, minWidth: 120, marginVertical: 8 }, send: { width: 104, padding: 12, borderRadius: 8, borderWidth: 1, borderColor: C.border, backgroundColor: C.bg }, footer: { color: '#647684', fontSize: 10, lineHeight: 20, letterSpacing: 1, marginTop: 28 }, mobileMaster: { flexDirection: 'row', alignItems: 'center' },
   error: { color: C.red, fontSize: 13, lineHeight: 20, marginVertical: 12 }, modalBackdrop: { flex: 1, backgroundColor: '#000b', justifyContent: 'center', alignItems: 'center', padding: 20 }, modal: { width: '100%', maxWidth: 480, padding: 24, borderRadius: 16, backgroundColor: C.panel, borderWidth: 1, borderColor: C.border, gap: 8 },
 });
