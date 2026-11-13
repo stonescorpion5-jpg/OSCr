@@ -34,7 +34,7 @@ Subsequent development sessions can use `npm start`. `eas.json` also provides de
 
 ## Mixing toolbar
 
-The top bar stays visible while scrolling. Main controls the LR mix; Bus1–Bus4 select monitor sends, and FX1–FX4 select effect sends. Each send mix shows its own output master. On small screens, swipe the tab row horizontally; the Settings gear stays on the right. Input mute buttons affect every mix, including when a send tab is selected.
+The top bar stays visible while scrolling. Main controls the LR mix; Bus1–Bus6 select monitor sends, and FX1–FX4 select effect sends. Each send mix shows its own output master. On small screens, swipe the tab row horizontally; the Settings gear stays on the right. Input mute buttons affect every mix, including when a send tab is selected.
 
 ## Implemented controls
 

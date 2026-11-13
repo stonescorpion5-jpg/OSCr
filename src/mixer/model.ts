@@ -7,4 +7,10 @@ export const strips: Strip[] = [
   ...Array.from({ length: 4 }, (_, i): Strip => ({ id: `/fxsend/${i + 1}`, label: `FX ${i + 1} SEND`, group: 'Buses', color: '#c49bff' })),
 ];
 export const master: Strip = { id: '/lr', label: 'MAIN LR', group: 'Buses', color: '#6de0bc' };
-export const queryPaths = () => [...strips, master].flatMap(s => [`${s.id}/config/name`, ...['fader', 'on', 'pan'].map(p => `${s.id}/mix/${p}`), ...(/^\/ch\//.test(s.id) ? ['eq/on', 'gate/on', 'dyn/on', 'preamp/hpon', ...Array.from({length: 10}, (_, i) => `mix/${String(i + 1).padStart(2, '0')}/level`)].map(p => `${s.id}/${p}`) : [])]);
+export const queryPaths = () => [...strips, master].flatMap(strip => {
+  const paths = [`${strip.id}/config/name`, ...['fader', 'on', 'pan'].map(p => `${strip.id}/mix/${p}`)];
+  if (strip.group === 'Inputs') paths.push(...['eq/on', 'gate/on', 'dyn/on', 'preamp/hpon'].map(p => `${strip.id}/${p}`));
+  const sendCount = strip.group === 'Inputs' ? 10 : strip.group === 'Returns' ? 6 : 0;
+  for (let send = 1; send <= sendCount; send++) paths.push(`${strip.id}/mix/${String(send).padStart(2, '0')}/level`);
+  return paths;
+});

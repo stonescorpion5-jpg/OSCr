@@ -8,7 +8,7 @@ import { strips, master, type Strip } from './src/mixer/model';
 import { levelLabel } from './src/mixer/osc';
 const mixTabs = [
   { label: 'Main', send: null, master },
-  ...Array.from({ length: 4 }, (_, i) => ({ label: `Bus${i + 1}`, send: i + 1, master: strips.find(strip => strip.id === `/bus/${i + 1}`)! })),
+  ...Array.from({ length: 6 }, (_, i) => ({ label: `Bus${i + 1}`, send: i + 1, master: strips.find(strip => strip.id === `/bus/${i + 1}`)! })),
   ...Array.from({ length: 4 }, (_, i) => ({ label: `FX${i + 1}`, send: i + 7, master: strips.find(strip => strip.id === `/fxsend/${i + 1}`)! })),
 ];
 type MixTab = (typeof mixTabs)[number];
@@ -48,9 +48,12 @@ function ChannelDetails({ strip, mixer }: { strip: Strip; mixer: Mixer }) {
 function MixerApp() {
   const mixer = useMixer(); const [host, setHost] = useState('192.168.1.1'); const [settings, setSettings] = useState(false);
   const [mix, setMix] = useState(mixTabs[0]);
-  const [group, setGroup] = useState<Strip['group']>('Inputs'); const [selected, setSelected] = useState(strips[0]);
+  const [selected, setSelected] = useState(strips[0]);
   const { width } = useWindowDimensions(); const ready = mixer.status === 'connected' || mixer.status === 'demo';
   const output = mix.master;
+  const visibleStrips = mix.send
+    ? [...strips.filter(strip => strip.group === 'Inputs'), ...strips.filter(strip => mix.send! <= 6 ? strip.group === 'Returns' : strip.id === `/rtn/${mix.send! - 6}`)]
+    : strips.filter(strip => strip.group === 'Inputs' || strip.group === 'Returns');
   const compactBar = width < 1100;
   const logo = <View style={s.barLogo}><Text style={s.brand}>OSC<Text style={{ color: C.green }}>r</Text></Text><Text style={s.brandSub}>/ X AIR CONTROL</Text></View>;
   const connection = <Pressable accessibilityRole="button" accessibilityLabel="Connection status" accessibilityHint="Open connection and demo options" onPress={() => setSettings(true)} style={({ pressed }) => [s.connectionBadge, pressed && s.active]}>
@@ -69,9 +72,7 @@ function MixerApp() {
     <ScrollView contentContainerStyle={s.page}>
     {!!mixer.error && <Text accessibilityRole="alert" style={s.error}>{mixer.error}</Text>}
 
-    <View style={[s.row, { marginTop: 28, marginBottom: 16, flexWrap: 'wrap' }]}><View style={{ flex: 1 }}><Text style={s.eyebrow}>MIXING DESK</Text><Text style={s.title}>{mix.send ? `${mix.label} send mix` : group === 'Inputs' ? 'Input channels' : group === 'Returns' ? 'Aux & effects returns' : 'Bus & FX masters'}</Text></View>{!mix.send && <View style={s.wrap}>{(['Inputs', 'Returns', 'Buses'] as const).map(g => <Button key={g} text={g} active={group === g} onPress={() => setGroup(g)} />)}</View>}</View>
-    {mix.send && <Text style={s.mixNotice}>Faders adjust input sends to {mix.label}. Mute buttons mute the input channel across every mix.</Text>}
-    <View style={{ flexDirection: width > 600 ? 'row' : 'column', gap: 16 }}><ScrollView horizontal style={{ flex: 1 }} contentContainerStyle={{ gap: 10, paddingBottom: 12 }} showsHorizontalScrollIndicator><>{strips.filter(c => c.group === (mix.send ? 'Inputs' : group)).map(strip => <Fader key={`${mix.label}-${strip.id}`} strip={strip} mix={mix} mixer={mixer} selected={selected.id === strip.id} onSelect={() => setSelected(strip)} />)}</></ScrollView><View style={width <= 600 ? s.mobileMaster : undefined}><Fader key={output.id} strip={output} mixer={mixer} selected={selected.id === output.id} onSelect={() => setSelected(output)} />{width <= 600 && <View style={{ flex: 1, padding: 16 }}><Text style={s.sectionTitle}>{mix.send ? `${mix.label} master output` : 'Main stereo output'}</Text><Text style={s.description}>{mix.send ? `The master fader controls the ${mix.label} output level.` : 'The master fader controls your main LR mix.'}</Text></View>}</View></View>
+    <View style={{ flexDirection: width > 600 ? 'row' : 'column', gap: 16 }}><ScrollView horizontal style={{ flex: 1 }} contentContainerStyle={{ gap: 10, paddingBottom: 12 }} showsHorizontalScrollIndicator><>{visibleStrips.map(strip => <Fader key={`${mix.label}-${strip.id}`} strip={strip} mix={strip.group === 'Returns' && (mix.send ?? 0) > 6 ? undefined : mix} mixer={mixer} selected={selected.id === strip.id} onSelect={() => setSelected(strip)} />)}</></ScrollView><View style={width <= 600 ? s.mobileMaster : undefined}><Fader key={output.id} strip={output} mixer={mixer} selected={selected.id === output.id} onSelect={() => setSelected(output)} />{width <= 600 && <View style={{ flex: 1, padding: 16 }}><Text style={s.sectionTitle}>{mix.send ? `${mix.label} master output` : 'Main stereo output'}</Text><Text style={s.description}>{mix.send ? `The master fader controls the ${mix.label} output level.` : 'The master fader controls your main LR mix.'}</Text></View>}</View></View>
     <ChannelDetails key={`${selected.id}-${mixer.status}-${mixer.values[`${selected.id}/config/name`] ?? ''}`} strip={selected} mixer={mixer} />
     <Text style={s.footer}>OSCr  /  XR18 WORKSPACE     •     {mixer.status === 'demo' ? 'DEMO MODE' : 'OSC / UDP'}\nLevels are control values, not audio meters.</Text>
   </ScrollView>

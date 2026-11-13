@@ -32,3 +32,11 @@ test('XR18 addresses cover 16 inputs, stereo aux, 4 returns, 6 buses, 4 FX sends
   for (const path of ['/ch/16/mix/fader','/rtn/aux/mix/on','/rtn/4/mix/fader','/bus/6/mix/fader','/fxsend/4/mix/fader','/lr/mix/fader','/ch/01/mix/10/level']) assert.ok(paths.includes(path));
   assert.equal(new Set(paths).size, paths.length);
 });
+
+test('return levels are synchronized for all six bus mixes', () => {
+  const paths = queryPaths();
+  for (const root of ['/rtn/aux', '/rtn/1', '/rtn/2', '/rtn/3', '/rtn/4']) {
+    for (let bus = 1; bus <= 6; bus++) assert.ok(paths.includes(`${root}/mix/${String(bus).padStart(2, '0')}/level`));
+    assert.ok(!paths.includes(`${root}/mix/07/level`));
+  }
+});
