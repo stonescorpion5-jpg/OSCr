@@ -1,11 +1,15 @@
+import { scanMixerNetwork } from './discovery';
 import { Buffer } from 'buffer';
 import { NativeModules } from 'react-native';
 import { encode, decode, type Argument } from './osc';
 import type { Callbacks, Transport } from './transport';
-export function createTransport(): Transport {
+function loadUdp() {
   if (!NativeModules.UdpSockets) throw new Error('UDP is unavailable in Expo Go. Install a development build with npm run ios or npm run android.');
   const module = require('react-native-udp');
-  const udp = module.default ?? module;
+  return module.default ?? module;
+}
+export function createTransport(): Transport {
+  const udp = loadUdp();
   let socket: any; let host = ''; let callbacks: Callbacks;
   return {
     open(ip, cb) {
@@ -24,3 +28,5 @@ export function createTransport(): Transport {
     close() { socket?.removeAllListeners(); socket?.close(); socket = undefined; },
   };
 }
+
+export function discoverMixers(signal?: AbortSignal) { return scanMixerNetwork(() => loadUdp().createSocket({ type: 'udp4' }), signal); }

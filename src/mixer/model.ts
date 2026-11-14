@@ -1,3 +1,4 @@
+import { outputPaths } from './output';
 import { soloPath } from './solo';
 import { dynamicsFields, hasCompressor } from './dynamics';
 import { bandCount } from './eq';
@@ -12,6 +13,7 @@ export const strips: Strip[] = [
 export const master: Strip = { id: '/lr', label: 'MAIN LR', group: 'Buses', color: '#6de0bc' };
 export const queryPaths = () => [...strips, master].flatMap(strip => {
   const paths = [`${strip.id}/config/name`, ...['fader', 'on', 'pan'].map(p => `${strip.id}/mix/${p}`)];
+  paths.push(...outputPaths(strip.id));
   const solo = soloPath(strip.id);
   if (solo) paths.push(solo);
   if (strip.group === 'Inputs') paths.push(...['eq/on', 'gate/on', 'dyn/on', 'preamp/hpon'].map(p => `${strip.id}/${p}`));

@@ -1,8 +1,11 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, Pressable, TextInput, Modal, useWindowDimensions } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, Pressable, TextInput, Modal, Platform, useWindowDimensions } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import Slider from './src/components/Slider';
+import OutputEditor from './src/components/OutputEditor';
 import EqEditor from './src/components/EqEditor';
+import MiniPan from './src/components/MiniPan';
+import MiniEqCurve from './src/components/MiniEqCurve';
 import DynamicsEditor from './src/components/DynamicsEditor';
 import { StatusBar } from 'expo-status-bar';
 import { useMixer } from './src/mixer/useMixer';
@@ -24,7 +27,6 @@ function SignalOverview({ strip, mixer, onSelect }: { strip: Strip; mixer: Mixer
   const input = strip.group === 'Inputs';
   const isReturn = strip.group === 'Returns';
   const pan = mixer.values[`${strip.id}/mix/pan`];
-  const panLabel = typeof pan !== 'number' ? '—' : Math.abs(pan - .5) < .005 ? 'C' : `${pan < .5 ? 'L' : 'R'} ${Math.round(Math.abs(pan - .5) * 200)}`;
   const status = (path: string) => { const value = mixer.values[`${strip.id}/${path}`]; return value === 1 ? 'ON' : value === 0 ? 'OFF' : '—'; };
   const gain = mixer.values[`${strip.id}/overview/gain`];
   const phantom = mixer.values[`${strip.id}/overview/phantom`];
@@ -40,8 +42,8 @@ function SignalOverview({ strip, mixer, onSelect }: { strip: Strip; mixer: Mixer
     <View style={s.signalRow}><Text style={s.signalLabel}>SEND</Text>{sends(1, 6)}</View>
     {!isReturn && <View style={s.signalRow}><Text style={s.signalLabel}>FX</Text>{sends(7, 4)}</View>}
     {!isReturn && <View style={s.signalRow}>{[['GATE', 'gate/on'], ['DYN', 'dyn/on']].map(([label, path]) => <View key={path} style={s.processor}><View style={[s.stageDot, status(path) === 'ON' && { backgroundColor: strip.color }]} /><Text style={s.signalLabel}>{label}</Text><Text style={s.stageState}>{status(path)}</Text></View>)}</View>}
-    <View style={s.signalRow}><Text style={s.signalLabel}>EQ</Text><View style={s.eqLine}><View style={[s.eqStroke, status('eq/on') === 'ON' && { backgroundColor: strip.color }]} /></View><Text style={s.stageState}>{status('eq/on')}</Text></View>
-    <View style={[s.signalRow, s.signalLastRow]}><Text style={s.signalLabel}>PAN LR</Text><Text style={[s.signalValue, { color: strip.color }]}>{panLabel}</Text></View>
+    <View style={s.signalRow}><Text style={s.signalLabel}>EQ</Text><MiniEqCurve id={strip.id} label={strip.label} color={strip.color} values={mixer.values} /><Text style={s.stageState}>{status('eq/on')}</Text></View>
+    <View style={[s.signalRow, s.signalLastRow]}><Text style={s.signalLabel}>PAN</Text><MiniPan value={pan} color={strip.color} supported={!strip.id.startsWith('/fxsend/')} /></View>
   </Pressable>;
 }
 function Fader({ strip, mixer, selected, onSelect, onInspect, mix }: { strip: Strip; mixer: Mixer; selected: boolean; onSelect: () => void; onInspect?: () => void; mix?: MixTab }) {
@@ -73,28 +75,28 @@ function ChannelDetails({ strip, mixer, onBack }: { strip: Strip; mixer: Mixer; 
   const namePath = `${strip.id}/config/name`;
   const current = mixer.values[namePath];
   const [draft, setDraft] = useState(String(current || ''));
-  const [tab, setTab] = useState<'General' | 'EQ' | 'Dynamics'>('General');
+  const [tab, setTab] = useState<'Input' | 'Sends' | 'EQ' | 'Dynamics' | 'Insert' | 'Output'>('Input');
   const gainPath = `${strip.id}/overview/gain`;
   const phantomPath = `${strip.id}/overview/phantom`;
   const gain = mixer.values[gainPath];
   const phantom = mixer.values[phantomPath];
-  const panPath = `${strip.id}/mix/pan`;
-  const pan = mixer.values[panPath];
-  const panLabel = typeof pan !== 'number' ? '—' : Math.abs(pan - .5) < .005 ? 'Center' : `${pan < .5 ? 'L' : 'R'} ${Math.round(Math.abs(pan - .5) * 200)}`;
   const sendCount = input ? 10 : isReturn ? 6 : 0;
   return <View style={s.details}>
     <View style={s.detailsHeader}><Text style={[s.sectionTitle, { marginBottom: 0, flex: 1 }]}>{strip.label} / Channel controls</Text><Button text="← Back to mixer" onPress={onBack} /></View>
-    <View style={s.detailTabs}>{(['General', 'EQ', 'Dynamics'] as const).map(item => <Pressable key={item} accessibilityRole="tab" accessibilityState={{ selected: tab === item, disabled: item === 'Dynamics' && !hasDynamics || item === 'EQ' && !hasEq }} disabled={item === 'Dynamics' && !hasDynamics || item === 'EQ' && !hasEq} onPress={() => setTab(item)} style={[s.topTab, tab === item && s.topTabSelected, (item === 'Dynamics' && !hasDynamics || item === 'EQ' && !hasEq) && { opacity: .35 }]}><Text style={[s.topTabText, tab === item && s.topTabTextSelected]}>{item}</Text></Pressable>)}</View>
-    {tab === 'General' && <View accessibilityLabel="General channel controls">
+    <View style={s.detailTabs}>{(['Input', 'Sends', 'EQ', 'Dynamics', 'Insert', 'Output'] as const).map(item => <Pressable key={item} accessibilityRole="tab" accessibilityState={{ selected: tab === item, disabled: item === 'Dynamics' && !hasDynamics || item === 'EQ' && !hasEq }} disabled={item === 'Dynamics' && !hasDynamics || item === 'EQ' && !hasEq} onPress={() => setTab(item)} style={[s.topTab, tab === item && s.topTabSelected, (item === 'Dynamics' && !hasDynamics || item === 'EQ' && !hasEq) && { opacity: .35 }]}><Text style={[s.topTabText, tab === item && s.topTabTextSelected]}>{item}</Text></Pressable>)}</View>
+    {tab === 'Input' && <View accessibilityLabel="Input channel controls">
       <View style={s.row}><TextInput accessibilityLabel="Channel name" maxLength={12} placeholder="Channel name" placeholderTextColor={C.muted} value={draft} onChangeText={setDraft} style={[s.input, { flex: 1 }]} /><Button text="Save" disabled={current === undefined} onPress={() => mixer.write(namePath, draft.trim(), 's')} /></View>
       <View style={[s.wrap, { marginVertical: 18 }]}>
         {input && <>
           <View style={s.controlCard}><View style={s.row}><Text style={s.body}>Gain</Text><Text style={s.small}>{typeof gain === 'number' ? `${gain.toFixed(1)} dB` : '—'}</Text></View><Slider accessibilityLabel={`${strip.label} input gain`} minimumValue={-12} maximumValue={60} step={0.5} value={typeof gain === 'number' ? gain : -12} disabled={mixer.status !== 'demo'} minimumTrackTintColor={C.green} maximumTrackTintColor={C.border} thumbTintColor={C.green} onValueChange={value => { if (mixer.status === 'demo') mixer.write(gainPath, Math.round(value * 2) / 2); }} /></View>
           <View style={s.controlCard}><Text style={[s.body, { marginBottom: 12 }]}>Phantom power</Text><Button text={`48V ${phantom === 1 ? 'ON' : phantom === 0 ? 'OFF' : '—'}`} active={phantom === 1} tone="red" disabled={mixer.status !== 'demo'} onPress={() => { if (mixer.status === 'demo') mixer.write(phantomPath, phantom === 1 ? 0 : 1, 'i'); }} /></View>
         </>}
-        {!strip.id.startsWith('/fxsend/') && <View style={s.controlCard}><View style={s.row}><Text style={s.body}>Pan / balance LR</Text><Text style={s.small}>{panLabel}</Text></View><Slider accessibilityLabel={`${strip.label} channel pan`} minimumValue={0} maximumValue={1} value={typeof pan === 'number' ? pan : .5} disabled={pan === undefined} minimumTrackTintColor={C.green} maximumTrackTintColor={C.border} thumbTintColor={C.green} onValueChange={value => mixer.write(panPath, value)} /></View>}
+
       </View>
       {input && mixer.status !== 'demo' && <Text style={s.description}>Gain and 48V controls are available in demo mode; live preamp readback is pending.</Text>}
+    </View>}
+    {tab === 'Sends' && <View accessibilityLabel="Channel sends">
+      {sendCount === 0 && <Text style={s.description}>No channel sends are available for this strip.</Text>}
       {sendCount > 0 && <><Text style={s.sectionTitle}>Sends</Text><ScrollView horizontal contentContainerStyle={{ gap: 8, paddingBottom: 10 }}>{Array.from({ length: sendCount }, (_, i) => {
         const path = `${strip.id}/mix/${String(i + 1).padStart(2, '0')}/level`;
         const value = mixer.values[path];
@@ -109,6 +111,8 @@ function ChannelDetails({ strip, mixer, onBack }: { strip: Strip; mixer: Mixer; 
         </View>;
       })}</ScrollView></>}
     </View>}
+    {tab === 'Output' && <OutputEditor id={strip.id} mixer={mixer} />}
+    {tab === 'Insert' && <View accessibilityLabel="Channel insert controls"><Text style={s.description}>Insert controls are not implemented yet.</Text></View>}
     {tab === 'Dynamics' && <DynamicsEditor id={strip.id} mixer={mixer} />}
     {tab === 'EQ' && <EqEditor id={strip.id} mixer={mixer} />}
   </View>;
@@ -128,7 +132,7 @@ function MixerApp() {
   const logo = <View style={s.barLogo}><Text style={s.brand}>OSC<Text style={{ color: C.green }}>r</Text></Text><Text style={s.brandSub}>/ X AIR CONTROL</Text></View>;
   const connection = <Pressable accessibilityRole="button" accessibilityLabel="Connection status" accessibilityHint="Open connection and demo options" onPress={() => setSettings(true)} style={({ pressed }) => [s.connectionBadge, pressed && s.active]}>
     <View style={[s.dot, { backgroundColor: ready ? C.green : '#f0bc73' }]} />
-    <View style={{ flexShrink: 1 }}><Text numberOfLines={1} style={s.connectionTitle}>{mixer.status === 'demo' ? 'DEMO SESSION' : mixer.status === 'connected' ? mixer.device : mixer.status === 'connecting' ? 'CONNECTING…' : 'CONNECT MIXER'}</Text>{!compactBar && <Text style={s.connectionSubtitle}>{mixer.status === 'demo' ? 'Local demo · connection options' : mixer.status === 'connected' ? `${host} : 10024` : 'Demo / local network'}</Text>}</View>
+    <View style={{ flexShrink: 1 }}><Text numberOfLines={1} style={s.connectionTitle}>{mixer.status === 'demo' ? 'DEMO SESSION' : mixer.status === 'connected' ? mixer.device : mixer.status === 'connecting' ? 'CONNECTING…' : mixer.discovering ? 'SEARCHING…' : 'CONNECT MIXER'}</Text>{!compactBar && <Text style={s.connectionSubtitle}>{mixer.status === 'demo' ? 'Local demo · connection options' : mixer.status === 'connected' ? `${mixer.connectedHost ?? host} : 10024` : 'Demo / local network'}</Text>}</View>
     <Text style={s.small}>⌄</Text>
   </Pressable>;
   const settingsControl = <Pressable accessibilityRole="button" accessibilityLabel="Settings" accessibilityHint="Open mixer connection settings" onPress={() => setSettings(true)} style={({ pressed }) => [s.settingsButton, pressed && s.active]}><Text style={s.gearIcon}>⚙</Text></Pressable>;
@@ -154,7 +158,7 @@ function MixerApp() {
     </>}
     <Text style={s.footer}>OSCr  /  XR18 WORKSPACE     •     {mixer.status === 'demo' ? 'DEMO MODE' : 'OSC / UDP'}\nLevels are control values, not audio meters.</Text>
   </ScrollView>
-  <Modal visible={settings} transparent animationType="fade" onRequestClose={() => setSettings(false)}><View style={s.modalBackdrop}><View style={s.modal}><Text style={s.eyebrow}>SETTINGS / LOCAL NETWORK</Text><Text style={s.title}>Connect your XR18</Text><Text style={s.description}>Join the mixer’s Wi-Fi or the router it’s connected to. Enter the mixer’s IP address below.</Text><Text style={s.body}>Mixer IP address</Text><TextInput accessibilityLabel="Mixer IP address" value={host} onChangeText={setHost} editable={mixer.status === 'offline' || mixer.status === 'demo'} keyboardType="decimal-pad" autoCapitalize="none" autoCorrect={false} style={s.input} /><Text style={s.small}>OSC port 10024 · iOS / Android development build required</Text>{!!mixer.error && <Text style={s.error}>{mixer.error}</Text>}<View style={s.wrap}><Button text={mixer.status === 'connected' || mixer.status === 'connecting' ? 'Disconnect' : 'Connect'} active onPress={() => { if (mixer.status === 'connected' || mixer.status === 'connecting') mixer.disconnect(); else void mixer.connect(host.trim()); }} /><Button text="Demo mode" onPress={() => { mixer.demo(); setSettings(false); }} /><Button text="Close" onPress={() => setSettings(false)} /></View><Text style={s.description}>Connecting reads the current mix. Controls send changes only when you adjust them. The app disconnects when sent to the background.</Text></View></View></Modal>
+  <Modal visible={settings} transparent animationType="fade" onRequestClose={() => setSettings(false)}><View style={s.modalBackdrop}><View style={s.modal}><Text style={s.eyebrow}>SETTINGS / LOCAL NETWORK</Text><Text style={s.title}>Connect your XR18</Text><Text style={s.description}>Join the mixer’s Wi-Fi or the router it’s connected to. Enter the mixer’s IP address below.</Text><View style={s.discoveryBox}><View style={s.row}><Text style={s.body}>Automatic discovery</Text><Button text={mixer.discovering ? 'Searching…' : 'Find mixer'} disabled={Platform.OS === 'web' || mixer.discovering || mixer.status === 'connected' || mixer.status === 'connecting'} onPress={() => { void mixer.discover(); }} /></View><Text style={s.description}>{Platform.OS === 'web' ? 'Available in iOS/Android development builds. One XR18 found connects automatically; multiple results let you choose.' : mixer.discoveryMessage || 'The app searches on launch and auto-connects when one XR18 responds.'}</Text>{mixer.discovered.length > 1 && mixer.discovered.map(found => <Button key={found.host} text={`${found.name} · ${found.host}`} disabled={mixer.status === 'connecting' || mixer.status === 'connected'} onPress={() => { setHost(found.host); void mixer.connect(found.host); }} />)}</View><Text style={s.body}>Mixer IP address</Text><TextInput accessibilityLabel="Mixer IP address" value={mixer.connectedHost ?? host} onChangeText={setHost} editable={mixer.status === 'offline' || mixer.status === 'demo'} keyboardType="decimal-pad" autoCapitalize="none" autoCorrect={false} style={s.input} /><Text style={s.small}>OSC port 10024 · iOS / Android development build required</Text>{!!mixer.error && <Text style={s.error}>{mixer.error}</Text>}<View style={s.wrap}><Button text={mixer.status === 'connected' || mixer.status === 'connecting' ? 'Disconnect' : 'Connect'} active onPress={() => { if (mixer.status === 'connected' || mixer.status === 'connecting') mixer.disconnect(); else void mixer.connect(host.trim()); }} /><Button text="Demo mode" onPress={() => { mixer.demo(); setSettings(false); }} /><Button text="Close" onPress={() => setSettings(false)} /></View><Text style={s.description}>Connecting reads the current mix. Controls send changes only when you adjust them. The app disconnects when sent to the background.</Text></View></View></Modal>
   </SafeAreaView>;
 }
 export default function App() { return <SafeAreaProvider><MixerApp /></SafeAreaProvider>; }
@@ -166,6 +170,7 @@ const s = StyleSheet.create({
   topMeta: { flexDirection: 'row', alignItems: 'center', gap: 8, width: '100%', paddingTop: 8 },
   compactTabs: { flexDirection: 'row', width: '100%' },
   barLogo: { flexDirection: 'row', alignItems: 'center', gap: 8, marginRight: 14, flexShrink: 0 },
+  discoveryBox: { borderWidth: 1, borderColor: C.border, borderRadius: 8, padding: 12, gap: 6, backgroundColor: C.bg },
   connectionBadge: { flexDirection: 'row', alignItems: 'center', gap: 9, minHeight: 44, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: C.border, borderRadius: 8, backgroundColor: '#1b2630', flexShrink: 1 },
   connectionTitle: { color: C.text, fontSize: 10, fontWeight: '700', letterSpacing: .5 },
   connectionSubtitle: { color: C.muted, fontSize: 10, marginTop: 3 },
@@ -199,7 +204,7 @@ const s = StyleSheet.create({
   eqStroke: { height: 1, backgroundColor: '#46525d' },
   strip: { width: 132, borderWidth: 1, borderColor: C.border, borderRadius: 10, backgroundColor: C.panel, padding: 10 }, scribble: { borderTopWidth: 3, paddingTop: 12, paddingBottom: 14 }, channelName: { color: C.text, fontSize: 14, fontWeight: '600', marginTop: 7 }, db: { color: C.text, textAlign: 'center', fontSize: 22, fontVariant: ['tabular-nums'], marginTop: 4 }, unit: { color: C.muted, fontSize: 10 },
   faderWell: { height: 260, width: 110, position: 'relative', marginVertical: 12 }, scale: { position: 'absolute', left: 2, top: 9, bottom: 9, justifyContent: 'space-between' }, scaleText: { color: '#7d8d9a', fontSize: 9 }, verticalSlider: { width: 248, height: 40, position: 'absolute', left: -60, top: 110, transform: [{ rotate: '-90deg' }] }, panLabel: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 18 }, reset: { color: C.muted, fontSize: 9, textAlign: 'center', paddingTop: 14, paddingBottom: 4, letterSpacing: 1 },
-  detailTabs: { flexDirection: 'row', gap: 6, borderBottomWidth: 1, borderBottomColor: C.border, paddingBottom: 12, marginBottom: 18 },
+  detailTabs: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, borderBottomWidth: 1, borderBottomColor: C.border, paddingBottom: 12, marginBottom: 18 },
   controlCard: { padding: 16, width: 260, maxWidth: '100%', borderRadius: 8, borderWidth: 1, borderColor: C.border, backgroundColor: C.bg },
   controlTitle: { color: C.text, fontSize: 14, fontWeight: '600', marginBottom: 14 },
   sendTitle: { fontSize: 11, fontWeight: '700', letterSpacing: 1, textAlign: 'center' },

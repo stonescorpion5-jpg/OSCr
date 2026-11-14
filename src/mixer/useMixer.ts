@@ -1,24 +1,50 @@
+import { outputPaths } from './output';
+import { autoConnectCandidate, type MixerDevice } from './discovery';
 import { soloPath } from './solo';
 import { dynamicsWire, hasCompressor, type DynamicsKind } from './dynamics';
 import { bandCount, frequencyToWire, gainToWire, qToWire } from './eq';
 import { useEffect, useRef, useState } from 'react';
-import { AppState } from 'react-native';
-import { createTransport, type Transport } from './transport';
+import { AppState, Platform } from 'react-native';
+import { createTransport, discoverMixers, type Transport } from './transport';
 import { queryPaths, strips, master } from './model';
 import type { Argument } from './osc';
 export type Status = 'offline' | 'connecting' | 'connected' | 'demo';
 export function useMixer() {
+  const [discovering, setDiscovering] = useState(false);
+  const [discovered, setDiscovered] = useState<MixerDevice[]>([]);
+  const [discoveryMessage, setDiscoveryMessage] = useState('');
+  const [connectedHost, setConnectedHost] = useState<string>();
+  const scanController = useRef<AbortController | null>(null);
   const [status, setStatus] = useState<Status>('offline');
   const [values, setValues] = useState<Record<string, number | string>>({});
   const [error, setError] = useState(''); const [device, setDevice] = useState('XR18');
   const transport = useRef<Transport | null>(null); const mode = useRef<Status>('offline');
   const timers = useRef<ReturnType<typeof setInterval>[]>([]); const lastSeen = useRef(0);
   const session = useRef(0);
-  function disconnect() { session.current++; timers.current.forEach(clearInterval); timers.current = []; transport.current?.close(); transport.current = null; mode.current = 'offline'; setStatus('offline'); setValues({}); }
-  useEffect(() => { const sub = AppState.addEventListener('change', s => { if (s !== 'active' && mode.current !== 'demo') disconnect(); }); return () => { sub.remove(); disconnect(); }; }, []);
+  function disconnect() { session.current++; scanController.current?.abort(); scanController.current = null; setDiscovering(false); setConnectedHost(undefined); timers.current.forEach(clearInterval); timers.current = []; transport.current?.close(); transport.current = null; mode.current = 'offline'; setStatus('offline'); setValues({}); }
+  // Scan once on mount; reconnects and rescans are explicit user actions.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (Platform.OS !== 'web') void discover(); const sub = AppState.addEventListener('change', s => { if (s !== 'active' && mode.current !== 'demo') disconnect(); }); return () => { sub.remove(); disconnect(); }; }, []);
+  async function discover() {
+    disconnect(); setError(''); setDiscovered([]); setDiscoveryMessage('Searching the local network…');
+    const token = session.current, controller = new AbortController(); scanController.current = controller; setDiscovering(true);
+    try {
+      const devices = await discoverMixers(controller.signal);
+      if (token !== session.current) return;
+      setDiscovered(devices); setDiscovering(false); scanController.current = null;
+      const candidate = autoConnectCandidate(devices);
+      if (candidate) { setDiscoveryMessage(`Found ${candidate.name}. Connecting…`); await connect(candidate.host); }
+      else setDiscoveryMessage(devices.length ? 'Multiple XR18 mixers found. Choose the one to connect to.' : 'No XR18 responded. Check Wi-Fi/local network permissions, or enter its IP manually.');
+    } catch (e) {
+      if (token !== session.current) return;
+      setDiscovering(false); scanController.current = null;
+      setDiscoveryMessage(`${e instanceof Error ? e.message : 'Discovery failed.'}${Platform.OS === 'ios' ? ' iOS broadcast discovery requires Apple’s multicast entitlement; manual IP connection is still available.' : ''}`);
+    }
+  }
   function demo() {
     disconnect(); setError(''); const initial: Record<string, number | string> = {};
     [...strips, master].forEach((s, i) => { initial[`${s.id}/mix/fader`] = .65 - (i % 4) * .06; initial[`${s.id}/mix/on`] = 1; initial[`${s.id}/mix/pan`] = .5; initial[`${s.id}/config/name`] = s.label;
+      outputPaths(s.id).forEach(path => { initial[path] = path.endsWith('/weight') ? .5 : path.endsWith('/lr') ? 1 : 0; });
       const solo = soloPath(s.id); if (solo) initial[solo] = 0;
       if (s.group === 'Inputs') { initial[`${s.id}/overview/gain`] = 12 + (i % 4) * 3; initial[`${s.id}/overview/phantom`] = 0; }
       ['eq/on','gate/on','dyn/on','preamp/hpon'].forEach(p => initial[`${s.id}/${p}`] = 0);
@@ -51,6 +77,7 @@ export function useMixer() {
   async function connect(host: string) {
     disconnect(); setError('');
     if (!/^(\d{1,3}\.){3}\d{1,3}$/.test(host) || host.split('.').some(v => +v > 255) || host === '0.0.0.0' || host.endsWith('.255')) { setError('Enter the mixer’s unicast IPv4 address, such as 192.168.1.1.'); return; }
+    setConnectedHost(host);
     const token = session.current; mode.current = 'connecting'; setStatus('connecting'); lastSeen.current = Date.now();
     const fail = (message: string) => { if (token !== session.current) return; disconnect(); setError(message); };
     try {
@@ -85,5 +112,5 @@ export function useMixer() {
     }
     setValues(v => ({ ...v, [address]: value }));
   }
-  return { status, values, error, device, connect, disconnect, demo, write };
+  return { status, values, error, device, connectedHost, discovering, discovered, discoveryMessage, discover, connect, disconnect, demo, write };
 }
