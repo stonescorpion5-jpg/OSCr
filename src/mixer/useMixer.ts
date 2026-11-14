@@ -1,3 +1,4 @@
+import { inputPaths } from './input';
 import { outputPaths } from './output';
 import { autoConnectCandidate, type MixerDevice } from './discovery';
 import { soloPath } from './solo';
@@ -46,7 +47,9 @@ export function useMixer() {
     [...strips, master].forEach((s, i) => { initial[`${s.id}/mix/fader`] = .65 - (i % 4) * .06; initial[`${s.id}/mix/on`] = 1; initial[`${s.id}/mix/pan`] = .5; initial[`${s.id}/config/name`] = s.label;
       outputPaths(s.id).forEach(path => { initial[path] = path.endsWith('/weight') ? .5 : path.endsWith('/lr') ? 1 : 0; });
       const solo = soloPath(s.id); if (solo) initial[solo] = 0;
-      if (s.group === 'Inputs') { initial[`${s.id}/overview/gain`] = 12 + (i % 4) * 3; initial[`${s.id}/overview/phantom`] = 0; }
+      inputPaths(s.id).forEach(path => initial[path] = 0);
+      if (s.group === 'Inputs') { initial[`${s.id}/config/insrc`] = i; initial[`${s.id}/config/rtnsrc`] = i; initial[`/headamp/${s.id.slice(-2)}/gain`] = (24 + (i % 4) * 3) / 72; initial[`/headamp/${s.id.slice(-2)}/phantom`] = 0; initial[`${s.id}/preamp/hpf`] = Math.log(4) / Math.log(20); }
+      if (s.group === 'Inputs' || s.group === 'Returns') initial[`${s.id}/preamp/rtntrim`] = .5;
       ['eq/on','gate/on','dyn/on','preamp/hpon'].forEach(p => initial[`${s.id}/${p}`] = 0);
       const processors: DynamicsKind[] = s.group === 'Inputs' ? ['gate', 'dyn'] : hasCompressor(s.id) ? ['dyn'] : [];
       processors.forEach(kind => {
@@ -71,7 +74,10 @@ export function useMixer() {
           initial[`${root}/q`] = qToWire(1.4);
         }
       }
-      for (let n = 1; n <= 10; n++) initial[`${s.id}/mix/${String(n).padStart(2,'0')}/level`] = 0;
+      for (let n = 1; n <= (s.group === 'Inputs' ? 10 : s.group === 'Returns' ? 6 : 0); n++) {
+        const root = `${s.id}/mix/${String(n).padStart(2, '0')}`;
+        initial[`${root}/level`] = 0; initial[`${root}/tap`] = n <= 6 ? 2 : 4;
+      }
     }); setValues(initial); mode.current = 'demo'; setStatus('demo');
   }
   async function connect(host: string) {

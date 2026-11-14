@@ -2,6 +2,9 @@ import React, { useState } from 'react';
 import { StyleSheet, Text, View, ScrollView, Pressable, TextInput, Modal, Platform, useWindowDimensions } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import Slider from './src/components/Slider';
+import InputEditor from './src/components/InputEditor';
+import { gainFromWire, headampRoot } from './src/mixer/input';
+import SendsEditor from './src/components/SendsEditor';
 import OutputEditor from './src/components/OutputEditor';
 import EqEditor from './src/components/EqEditor';
 import MiniPan from './src/components/MiniPan';
@@ -28,8 +31,10 @@ function SignalOverview({ strip, mixer, onSelect }: { strip: Strip; mixer: Mixer
   const isReturn = strip.group === 'Returns';
   const pan = mixer.values[`${strip.id}/mix/pan`];
   const status = (path: string) => { const value = mixer.values[`${strip.id}/${path}`]; return value === 1 ? 'ON' : value === 0 ? 'OFF' : '—'; };
-  const gain = mixer.values[`${strip.id}/overview/gain`];
-  const phantom = mixer.values[`${strip.id}/overview/phantom`];
+  const ha = headampRoot(mixer.values[`${strip.id}/config/insrc`]);
+  const rawGain = ha ? mixer.values[`${ha}/gain`] : undefined;
+  const gain = typeof rawGain === 'number' ? gainFromWire(rawGain) : undefined;
+  const phantom = ha ? mixer.values[`${ha}/phantom`] : undefined;
   function sends(first: number, count: number) {
     return <View style={s.miniSends}>{Array.from({ length: count }, (_, index) => {
       const value = mixer.values[`${strip.id}/mix/${String(first + index).padStart(2, '0')}/level`];
@@ -72,45 +77,12 @@ function ChannelDetails({ strip, mixer, onBack }: { strip: Strip; mixer: Mixer; 
   const isReturn = strip.group === 'Returns';
   const hasDynamics = input || strip.id === '/lr' || strip.id.startsWith('/bus/');
   const hasEq = hasDynamics || isReturn;
-  const namePath = `${strip.id}/config/name`;
-  const current = mixer.values[namePath];
-  const [draft, setDraft] = useState(String(current || ''));
   const [tab, setTab] = useState<'Input' | 'Sends' | 'EQ' | 'Dynamics' | 'Insert' | 'Output'>('Input');
-  const gainPath = `${strip.id}/overview/gain`;
-  const phantomPath = `${strip.id}/overview/phantom`;
-  const gain = mixer.values[gainPath];
-  const phantom = mixer.values[phantomPath];
-  const sendCount = input ? 10 : isReturn ? 6 : 0;
   return <View style={s.details}>
     <View style={s.detailsHeader}><Text style={[s.sectionTitle, { marginBottom: 0, flex: 1 }]}>{strip.label} / Channel controls</Text><Button text="← Back to mixer" onPress={onBack} /></View>
     <View style={s.detailTabs}>{(['Input', 'Sends', 'EQ', 'Dynamics', 'Insert', 'Output'] as const).map(item => <Pressable key={item} accessibilityRole="tab" accessibilityState={{ selected: tab === item, disabled: item === 'Dynamics' && !hasDynamics || item === 'EQ' && !hasEq }} disabled={item === 'Dynamics' && !hasDynamics || item === 'EQ' && !hasEq} onPress={() => setTab(item)} style={[s.topTab, tab === item && s.topTabSelected, (item === 'Dynamics' && !hasDynamics || item === 'EQ' && !hasEq) && { opacity: .35 }]}><Text style={[s.topTabText, tab === item && s.topTabTextSelected]}>{item}</Text></Pressable>)}</View>
-    {tab === 'Input' && <View accessibilityLabel="Input channel controls">
-      <View style={s.row}><TextInput accessibilityLabel="Channel name" maxLength={12} placeholder="Channel name" placeholderTextColor={C.muted} value={draft} onChangeText={setDraft} style={[s.input, { flex: 1 }]} /><Button text="Save" disabled={current === undefined} onPress={() => mixer.write(namePath, draft.trim(), 's')} /></View>
-      <View style={[s.wrap, { marginVertical: 18 }]}>
-        {input && <>
-          <View style={s.controlCard}><View style={s.row}><Text style={s.body}>Gain</Text><Text style={s.small}>{typeof gain === 'number' ? `${gain.toFixed(1)} dB` : '—'}</Text></View><Slider accessibilityLabel={`${strip.label} input gain`} minimumValue={-12} maximumValue={60} step={0.5} value={typeof gain === 'number' ? gain : -12} disabled={mixer.status !== 'demo'} minimumTrackTintColor={C.green} maximumTrackTintColor={C.border} thumbTintColor={C.green} onValueChange={value => { if (mixer.status === 'demo') mixer.write(gainPath, Math.round(value * 2) / 2); }} /></View>
-          <View style={s.controlCard}><Text style={[s.body, { marginBottom: 12 }]}>Phantom power</Text><Button text={`48V ${phantom === 1 ? 'ON' : phantom === 0 ? 'OFF' : '—'}`} active={phantom === 1} tone="red" disabled={mixer.status !== 'demo'} onPress={() => { if (mixer.status === 'demo') mixer.write(phantomPath, phantom === 1 ? 0 : 1, 'i'); }} /></View>
-        </>}
-
-      </View>
-      {input && mixer.status !== 'demo' && <Text style={s.description}>Gain and 48V controls are available in demo mode; live preamp readback is pending.</Text>}
-    </View>}
-    {tab === 'Sends' && <View accessibilityLabel="Channel sends">
-      {sendCount === 0 && <Text style={s.description}>No channel sends are available for this strip.</Text>}
-      {sendCount > 0 && <><Text style={s.sectionTitle}>Sends</Text><ScrollView horizontal contentContainerStyle={{ gap: 8, paddingBottom: 10 }}>{Array.from({ length: sendCount }, (_, i) => {
-        const path = `${strip.id}/mix/${String(i + 1).padStart(2, '0')}/level`;
-        const value = mixer.values[path];
-        const tint = i < 6 ? C.green : '#c49bff';
-        return <View key={path} style={s.send}>
-          <Text style={[s.sendTitle, { color: tint }]}>{i < 6 ? `BUS ${i + 1}` : `FX ${i - 5}`}</Text>
-          <Text style={s.sendValue}>{typeof value === 'number' ? `${levelLabel(value)} dB` : '—'}</Text>
-          <View style={s.sendWell}>
-            <View style={s.sendScale}>{['+10', '0', '−10', '−30', '−∞'].map(mark => <Text key={mark} style={s.scaleText}>{mark}</Text>)}</View>
-            <Slider accessibilityLabel={`${strip.label} ${i < 6 ? 'bus' : 'FX'} ${i < 6 ? i + 1 : i - 5} send`} style={s.sendSlider} value={typeof value === 'number' ? value : 0} disabled={value === undefined} minimumValue={0} maximumValue={1} minimumTrackTintColor={tint} maximumTrackTintColor={C.border} thumbTintColor={tint} onValueChange={v => mixer.write(path, v)} />
-          </View>
-        </View>;
-      })}</ScrollView></>}
-    </View>}
+    {tab === 'Input' && <InputEditor id={strip.id} mixer={mixer} />}
+    {tab === 'Sends' && <SendsEditor id={strip.id} label={strip.label} mixer={mixer} />}
     {tab === 'Output' && <OutputEditor id={strip.id} mixer={mixer} />}
     {tab === 'Insert' && <View accessibilityLabel="Channel insert controls"><Text style={s.description}>Insert controls are not implemented yet.</Text></View>}
     {tab === 'Dynamics' && <DynamicsEditor id={strip.id} mixer={mixer} />}
@@ -156,7 +128,6 @@ function MixerApp() {
     </> : <>
     <View style={{ flexDirection: width > 600 ? 'row' : 'column', gap: 16 }}><ScrollView horizontal style={{ flex: 1 }} contentContainerStyle={{ gap: 10, paddingBottom: 12 }} showsHorizontalScrollIndicator><>{visibleStrips.map(strip => <Fader key={`${mix.label}-${strip.id}`} strip={strip} mix={strip.group === 'Returns' && (mix.send ?? 0) > 6 ? undefined : mix} mixer={mixer} selected={selected.id === strip.id} onSelect={() => setSelected(strip)} onInspect={() => inspect(strip)} />)}</></ScrollView><View style={width <= 600 ? s.mobileMaster : undefined}><Fader key={output.id} strip={output} mixer={mixer} selected={selected.id === output.id} onSelect={() => setSelected(output)} onInspect={() => inspect(output)} />{width <= 600 && <View style={{ flex: 1, padding: 16 }}><Text style={s.sectionTitle}>{mix.send ? `${mix.label} master output` : 'Main stereo output'}</Text><Text style={s.description}>{mix.send ? `The master fader controls the ${mix.label} output level.` : 'The master fader controls your main LR mix.'}</Text></View>}</View></View>
     </>}
-    <Text style={s.footer}>OSCr  /  XR18 WORKSPACE     •     {mixer.status === 'demo' ? 'DEMO MODE' : 'OSC / UDP'}\nLevels are control values, not audio meters.</Text>
   </ScrollView>
   <Modal visible={settings} transparent animationType="fade" onRequestClose={() => setSettings(false)}><View style={s.modalBackdrop}><View style={s.modal}><Text style={s.eyebrow}>SETTINGS / LOCAL NETWORK</Text><Text style={s.title}>Connect your XR18</Text><Text style={s.description}>Join the mixer’s Wi-Fi or the router it’s connected to. Enter the mixer’s IP address below.</Text><View style={s.discoveryBox}><View style={s.row}><Text style={s.body}>Automatic discovery</Text><Button text={mixer.discovering ? 'Searching…' : 'Find mixer'} disabled={Platform.OS === 'web' || mixer.discovering || mixer.status === 'connected' || mixer.status === 'connecting'} onPress={() => { void mixer.discover(); }} /></View><Text style={s.description}>{Platform.OS === 'web' ? 'Available in iOS/Android development builds. One XR18 found connects automatically; multiple results let you choose.' : mixer.discoveryMessage || 'The app searches on launch and auto-connects when one XR18 responds.'}</Text>{mixer.discovered.length > 1 && mixer.discovered.map(found => <Button key={found.host} text={`${found.name} · ${found.host}`} disabled={mixer.status === 'connecting' || mixer.status === 'connected'} onPress={() => { setHost(found.host); void mixer.connect(found.host); }} />)}</View><Text style={s.body}>Mixer IP address</Text><TextInput accessibilityLabel="Mixer IP address" value={mixer.connectedHost ?? host} onChangeText={setHost} editable={mixer.status === 'offline' || mixer.status === 'demo'} keyboardType="decimal-pad" autoCapitalize="none" autoCorrect={false} style={s.input} /><Text style={s.small}>OSC port 10024 · iOS / Android development build required</Text>{!!mixer.error && <Text style={s.error}>{mixer.error}</Text>}<View style={s.wrap}><Button text={mixer.status === 'connected' || mixer.status === 'connecting' ? 'Disconnect' : 'Connect'} active onPress={() => { if (mixer.status === 'connected' || mixer.status === 'connecting') mixer.disconnect(); else void mixer.connect(host.trim()); }} /><Button text="Demo mode" onPress={() => { mixer.demo(); setSettings(false); }} /><Button text="Close" onPress={() => setSettings(false)} /></View><Text style={s.description}>Connecting reads the current mix. Controls send changes only when you adjust them. The app disconnects when sent to the background.</Text></View></View></Modal>
   </SafeAreaView>;
@@ -216,6 +187,6 @@ const s = StyleSheet.create({
   focusLayout: { flexDirection: 'row', alignItems: 'flex-start', gap: 18, width: '100%' },
   focusFader: { width: 132, flexShrink: 0 },
   focusControls: { flex: 1, minWidth: 320 },
-  details: { padding: 20, backgroundColor: C.panel, borderWidth: 1, borderColor: C.border, borderRadius: 12 }, sectionTitle: { color: C.text, fontSize: 17, fontWeight: '600', marginBottom: 14 }, input: { borderWidth: 1, borderColor: C.border, borderRadius: 8, backgroundColor: C.bg, color: C.text, padding: 14, minWidth: 120, marginVertical: 8 }, send: { width: 104, padding: 12, borderRadius: 8, borderWidth: 1, borderColor: C.border, backgroundColor: C.bg }, footer: { color: '#647684', fontSize: 10, lineHeight: 20, letterSpacing: 1, marginTop: 28 }, mobileMaster: { flexDirection: 'row', alignItems: 'center' },
+  details: { padding: 20, backgroundColor: C.panel, borderWidth: 1, borderColor: C.border, borderRadius: 12 }, sectionTitle: { color: C.text, fontSize: 17, fontWeight: '600', marginBottom: 14 }, input: { borderWidth: 1, borderColor: C.border, borderRadius: 8, backgroundColor: C.bg, color: C.text, padding: 14, minWidth: 120, marginVertical: 8 }, send: { width: 104, padding: 12, borderRadius: 8, borderWidth: 1, borderColor: C.border, backgroundColor: C.bg }, mobileMaster: { flexDirection: 'row', alignItems: 'center' },
   error: { color: C.red, fontSize: 13, lineHeight: 20, marginVertical: 12 }, modalBackdrop: { flex: 1, backgroundColor: '#000b', justifyContent: 'center', alignItems: 'center', padding: 20 }, modal: { width: '100%', maxWidth: 480, padding: 24, borderRadius: 16, backgroundColor: C.panel, borderWidth: 1, borderColor: C.border, gap: 8 },
 });

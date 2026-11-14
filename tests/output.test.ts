@@ -19,3 +19,10 @@ test('automix weight spans minus twelve to plus twelve dB', () => {
   assert.equal(weightFromWire(.5), 0);
   assert.equal(weightFromWire(1), 12);
 });
+test('send tap readback covers inputs and returns only', () => {
+  const paths = queryPaths();
+  assert.ok(paths.includes('/ch/01/mix/10/tap'));
+  assert.ok(paths.includes('/rtn/1/mix/06/tap'));
+  assert.ok(!paths.includes('/rtn/1/mix/07/tap'));
+  assert.ok(!paths.includes('/bus/1/mix/01/tap'));
+});

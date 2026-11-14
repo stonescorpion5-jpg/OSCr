@@ -1,3 +1,4 @@
+import { inputPaths } from './input';
 import { outputPaths } from './output';
 import { soloPath } from './solo';
 import { dynamicsFields, hasCompressor } from './dynamics';
@@ -11,9 +12,10 @@ export const strips: Strip[] = [
   ...Array.from({ length: 4 }, (_, i): Strip => ({ id: `/fxsend/${i + 1}`, label: `FX ${i + 1} SEND`, group: 'Buses', color: '#c49bff' })),
 ];
 export const master: Strip = { id: '/lr', label: 'MAIN LR', group: 'Buses', color: '#6de0bc' };
-export const queryPaths = () => [...strips, master].flatMap(strip => {
+export const queryPaths = () => [...new Set([...strips, master].flatMap(strip => {
   const paths = [`${strip.id}/config/name`, ...['fader', 'on', 'pan'].map(p => `${strip.id}/mix/${p}`)];
-  paths.push(...outputPaths(strip.id));
+  paths.push(...outputPaths(strip.id), ...inputPaths(strip.id));
+  if (strip.group === 'Inputs') paths.push(...['gain', 'phantom'].map(field => `/headamp/${strip.id.slice(-2)}/${field}`));
   const solo = soloPath(strip.id);
   if (solo) paths.push(solo);
   if (strip.group === 'Inputs') paths.push(...['eq/on', 'gate/on', 'dyn/on', 'preamp/hpon'].map(p => `${strip.id}/${p}`));
@@ -25,6 +27,6 @@ export const queryPaths = () => [...strips, master].flatMap(strip => {
   for (let band = 1; band <= bands; band++) paths.push(...['type', 'f', 'g', 'q'].map(field => `${strip.id}/eq/${band}/${field}`));
   if (bands === 6) paths.push(`${strip.id}/eq/mode`);
   const sendCount = strip.group === 'Inputs' ? 10 : strip.group === 'Returns' ? 6 : 0;
-  for (let send = 1; send <= sendCount; send++) paths.push(`${strip.id}/mix/${String(send).padStart(2, '0')}/level`);
+  for (let send = 1; send <= sendCount; send++) paths.push(...['level', 'tap'].map(field => `${strip.id}/mix/${String(send).padStart(2, '0')}/${field}`));
   return paths;
-});
+}))];
