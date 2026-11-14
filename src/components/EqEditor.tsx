@@ -36,7 +36,7 @@ export default function EqEditor({ id, mixer }: { id: string; mixer: ReturnType<
   const fmtHz = (f: number) => f >= 1000 ? `${(f / 1000).toFixed(2)} kHz` : `${Math.round(f)} Hz`;
   return <View accessibilityLabel="EQ channel controls">
     <View style={s.heading}><View><Text style={s.title}>Parametric EQ</Text><Text style={s.hint}>Drag a band to set frequency and gain</Text></View><Pressable accessibilityRole="button" disabled={enabled === undefined} onPress={() => mixer.write(`${id}/eq/on`, enabled === 1 ? 0 : 1, 'i')} style={[s.toggle, enabled === 1 && { borderColor: '#69dfd0' }]}><Text style={{ color: enabled === 1 ? '#69dfd0' : '#99acb9' }}>{enabled === 1 ? 'EQ ON' : enabled === 0 ? 'BYPASS' : 'EQ —'}</Text></Pressable></View>
-    <View onLayout={e => setWidth(Math.max(280, e.nativeEvent.layout.width))} style={s.graph}>
+    <View onLayout={e => setWidth(Math.max(180, e.nativeEvent.layout.width))} style={s.graph}>
       <Svg pointerEvents="none" width="100%" height={H} viewBox={`0 0 ${width} ${H}`}>
         <Defs><LinearGradient id="eqFill" x1="0" y1="0" x2="0" y2="1"><Stop offset="0" stopColor="#36cbd2" stopOpacity=".3" /><Stop offset="1" stopColor="#36cbd2" stopOpacity=".04" /></LinearGradient></Defs>
         {[20,30,40,50,60,80,100,200,300,400,500,600,800,1000,2000,3000,4000,5000,6000,8000,10000,20000].map(f => <Line key={f} x1={hzX(f)} x2={hzX(f)} y1={T} y2={H - B} stroke="#18404a" strokeWidth={.6} />)}

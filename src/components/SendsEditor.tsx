@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import Slider from './Slider';
 import type { useMixer } from '../mixer/useMixer';
 import { levelLabel } from '../mixer/osc';
 const taps = ['IN', 'PreEQ', 'PostEQ', 'Pre', 'Post', 'SubGroup'];
 type Props = { id: string; label: string; mixer: ReturnType<typeof useMixer> };
 export default function SendsEditor({ id, label, mixer }: Props) {
+  const { height } = useWindowDimensions();
+  const travel = Math.max(170, Math.min(600, height - 430));
   const [selected, setSelected] = useState(1);
   const count = id.startsWith('/ch/') ? 10 : id.startsWith('/rtn/') ? 6 : 0;
   const root = `${id}/mix/${String(selected).padStart(2, '0')}`;
@@ -22,7 +24,7 @@ export default function SendsEditor({ id, label, mixer }: Props) {
         <Pressable accessibilityRole="button" accessibilityLabel={`Select ${destination(n)} tap point`} accessibilityState={{ selected: selected === n }} onPress={() => setSelected(n)} style={s.select}>
           <Text style={[s.destination, { color }]}>{destination(n)}</Text><Text style={s.value}>{known ? `${levelLabel(level)} dB` : '—'}</Text>
         </Pressable>
-        <View style={s.well}><View style={s.scale}>{['+10', '0', '−10', '−30', '−∞'].map(mark => <Text key={mark} style={s.small}>{mark}</Text>)}</View><Slider accessibilityLabel={`${label} ${destination(n)} send`} style={s.slider} value={known ? level : 0} disabled={!known} minimumValue={0} maximumValue={1} minimumTrackTintColor={color} maximumTrackTintColor="#26323d" thumbTintColor={color} onValueChange={v => mixer.write(`${path}/level`, v)} /></View>
+        <View style={[s.well, { height: travel }]}><View style={s.scale}>{['+10', '0', '−10', '−30', '−∞'].map(mark => <Text key={mark} style={s.small}>{mark}</Text>)}</View><Slider accessibilityLabel={`${label} ${destination(n)} send`} style={[s.slider, { width: travel - 10, left: (100 - (travel - 10)) / 2, top: (travel - 40) / 2 }]} value={known ? level : 0} disabled={!known} minimumValue={0} maximumValue={1} minimumTrackTintColor={color} maximumTrackTintColor="#26323d" thumbTintColor={color} onValueChange={v => mixer.write(`${path}/level`, v)} /></View>
         <Pressable accessibilityRole="button" accessibilityLabel={`${destination(n)} tap point: ${typeof sendTap === 'number' ? taps[sendTap] ?? 'unknown' : 'unavailable'}`} accessibilityState={{ selected: selected === n }} onPress={() => setSelected(n)} style={[s.tap, selected === n && { backgroundColor: '#24384a' }]}><Text style={[s.tapText, { color }]}>{typeof sendTap === 'number' ? taps[sendTap] ?? '—' : '—'}</Text></Pressable>
       </View>;
     })}</View></View>;

@@ -51,7 +51,10 @@ function SignalOverview({ strip, mixer, onSelect }: { strip: Strip; mixer: Mixer
     <View style={[s.signalRow, s.signalLastRow]}><Text style={s.signalLabel}>PAN</Text><MiniPan value={pan} color={strip.color} supported={!strip.id.startsWith('/fxsend/')} /></View>
   </Pressable>;
 }
-function Fader({ strip, mixer, selected, onSelect, onInspect, mix }: { strip: Strip; mixer: Mixer; selected: boolean; onSelect: () => void; onInspect?: () => void; mix?: MixTab }) {
+function Fader({ strip, mixer, selected, onSelect, onInspect, mix, compactMode = false }: { compactMode?: boolean; strip: Strip; mixer: Mixer; selected: boolean; onSelect: () => void; onInspect?: () => void; mix?: MixTab }) {
+  const { height, width } = useWindowDimensions();
+  const compact = width < 600 && compactMode;
+  const travel = Math.max(140, Math.min(600, height - 460));
   const base = strip.id; const levelPath = mix?.send ? `${base}/mix/${String(mix.send).padStart(2, '0')}/level` : `${base}/mix/fader`;
   const levelName = mix?.send ? `${strip.label} to ${mix.label}` : `${strip.label} level`;
   const raw = mixer.values[levelPath]; const value = typeof raw === 'number' ? raw : undefined;
@@ -59,14 +62,18 @@ function Fader({ strip, mixer, selected, onSelect, onInspect, mix }: { strip: St
   const soloAddress = soloPath(base);
   const solo = soloAddress ? mixer.values[soloAddress] : undefined;
   const name = mixer.values[`${base}/config/name`];
-  return <View style={[s.strip, selected && { borderColor: strip.color }]}>
+  if (compact) return <View style={[s.strip, { width: '100%', borderColor: strip.color, gap: 6 }]}>
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}><View style={{ flex: 1 }}><Text style={[s.eyebrow, { color: strip.color }]}>{strip.label}</Text><Text numberOfLines={1} style={s.body}>{name || 'Untitled'}</Text></View><Text style={s.body}>{value === undefined ? '—' : levelLabel(value)} dB</Text><Button text="SOLO" active={solo === 1} disabled={solo === undefined} onPress={() => { if (soloAddress) mixer.write(soloAddress, solo === 1 ? 0 : 1, 'i'); }} /><Button text={on === 0 ? 'MUTED' : 'MUTE'} active={on === 0} disabled={on === undefined} onPress={() => mixer.write(`${base}/mix/on`, on === 0 ? 1 : 0, 'i')} /></View>
+    <Slider accessibilityLabel={levelName} style={{ width: '100%', height: 44 }} minimumValue={0} maximumValue={1} value={value ?? 0} disabled={value === undefined} minimumTrackTintColor={strip.color} maximumTrackTintColor="#303f4b" thumbTintColor="#edf4f6" onValueChange={v => mixer.write(levelPath, v)} />
+  </View>;
+  return <View style={[s.strip, compact && { width: '100%' }, selected && { borderColor: strip.color }]}>
     <Pressable accessibilityRole="button" onPress={onSelect} style={[s.scribble, { borderTopColor: strip.color }]}><Text style={[s.eyebrow, { color: strip.color }]}>{strip.label}</Text><Text numberOfLines={1} style={s.channelName}>{name || 'Untitled'}</Text></Pressable>
     <Pressable accessibilityRole="button" accessibilityLabel={`${strip.label} solo`} accessibilityState={{ selected: solo === 1 }} disabled={!soloAddress || (solo !== 0 && solo !== 1)} onPress={() => { if (soloAddress) mixer.write(soloAddress, solo === 1 ? 0 : 1, 'i'); }} style={[s.soloButton, solo === 1 && s.soloActive, solo === undefined && { opacity: .35 }]}><Text style={[s.soloText, solo === 1 && { color: '#f7cf74' }]}>SOLO</Text></Pressable>
-    <SignalOverview strip={strip} mixer={mixer} onSelect={onInspect ?? onSelect} />
+    {!compact && <SignalOverview strip={strip} mixer={mixer} onSelect={onInspect ?? onSelect} />}
     <Text style={s.db}>{value === undefined ? '—' : levelLabel(value)} <Text style={s.unit}>dB</Text></Text>
-    <View style={s.faderWell}>
-      <View style={s.scale}>{['+10', '0', '−10', '−30', '−∞'].map(t => <Text key={t} style={s.scaleText}>{t} ─</Text>)}</View>
-      <Slider accessibilityLabel={levelName} style={s.verticalSlider} minimumValue={0} maximumValue={1} value={value ?? 0} disabled={value === undefined} minimumTrackTintColor={strip.color} maximumTrackTintColor="#303f4b" thumbTintColor="#edf4f6" onValueChange={v => mixer.write(levelPath, v)} />
+    <View style={compact ? { height: 44, width: '100%' } : [s.faderWell, { height: travel }] }>
+      {!compact && <View style={s.scale}>{['+10', '0', '−10', '−30', '−∞'].map(t => <Text key={t} style={s.scaleText}>{t} ─</Text>)}</View>}
+      <Slider accessibilityLabel={levelName} style={compact ? { width: '100%', height: 44 } : [s.verticalSlider, { width: travel - 12, left: (110 - (travel - 12)) / 2, top: (travel - 40) / 2 }]} minimumValue={0} maximumValue={1} value={value ?? 0} disabled={value === undefined} minimumTrackTintColor={strip.color} maximumTrackTintColor="#303f4b" thumbTintColor="#edf4f6" onValueChange={v => mixer.write(levelPath, v)} />
     </View>
     <Button text={on === 0 ? 'MUTED' : 'MUTE'} active={on === 0} disabled={on === undefined} onPress={() => mixer.write(`${base}/mix/on`, on === 0 ? 1 : 0, 'i')} />
     <Pressable accessibilityRole="button" onPress={() => value !== undefined && mixer.write(levelPath, .75)} disabled={value === undefined}><Text style={s.reset}>SET 0 dB</Text></Pressable>
@@ -95,7 +102,7 @@ function MixerApp() {
   const [selected, setSelected] = useState(strips[0]);
   const [focused, setFocused] = useState(false);
   const inspect = (strip: Strip) => { setSelected(strip); setFocused(true); };
-  const { width } = useWindowDimensions(); const ready = mixer.status === 'connected' || mixer.status === 'demo';
+  const { width, height } = useWindowDimensions(); const ready = mixer.status === 'connected' || mixer.status === 'demo';
   const output = mix.master;
   const visibleStrips = mix.send
     ? [...strips.filter(strip => strip.group === 'Inputs'), ...strips.filter(strip => mix.send! <= 6 ? strip.group === 'Returns' : strip.id === `/rtn/${mix.send! - 6}`)]
@@ -115,18 +122,16 @@ function MixerApp() {
     <View style={s.topBar}>
       {compactBar ? <View style={[s.topBarInner, s.compactBar]}><View style={s.topMeta}>{logo}<View style={{ flex: 1 }} />{connection}{settingsControl}</View><View style={s.compactTabs}>{tabs}</View></View> : <View style={s.topBarInner}>{logo}{tabs}{connection}{settingsControl}</View>}
     </View>
-    <ScrollView contentContainerStyle={s.page}>
+    <ScrollView contentContainerStyle={[s.page, { padding: width < 600 ? 10 : 18, minHeight: Math.max(0, height - (compactBar ? 130 : 80)) }]}>
     {!!mixer.error && <Text accessibilityRole="alert" style={s.error}>{mixer.error}</Text>}
 
     {focused ? <>
-      <ScrollView horizontal contentContainerStyle={{ width: Math.max(500, Math.min(width - 44, 1556)) }}>
-        <View style={s.focusLayout}>
-          <View style={s.focusFader}><Fader strip={selected} mixer={mixer} selected onSelect={() => setFocused(false)} onInspect={() => setFocused(false)} mix={selected.id === output.id || (selected.group === 'Returns' && (mix.send ?? 0) > 6) ? undefined : mix} /></View>
+        <View style={[s.focusLayout, width < 600 && { flexDirection: 'column' }] }>
+          <View style={width < 600 ? { width: '100%' } : s.focusFader}><Fader compactMode strip={selected} mixer={mixer} selected onSelect={() => setFocused(false)} onInspect={() => setFocused(false)} mix={selected.id === output.id || (selected.group === 'Returns' && (mix.send ?? 0) > 6) ? undefined : mix} /></View>
           <View style={s.focusControls}><ChannelDetails key={`${selected.id}-${mixer.status}-${mixer.values[`${selected.id}/config/name`] ?? ''}`} strip={selected} mixer={mixer} onBack={() => setFocused(false)} /></View>
         </View>
-      </ScrollView>
     </> : <>
-    <View style={{ flexDirection: width > 600 ? 'row' : 'column', gap: 16 }}><ScrollView horizontal style={{ flex: 1 }} contentContainerStyle={{ gap: 10, paddingBottom: 12 }} showsHorizontalScrollIndicator><>{visibleStrips.map(strip => <Fader key={`${mix.label}-${strip.id}`} strip={strip} mix={strip.group === 'Returns' && (mix.send ?? 0) > 6 ? undefined : mix} mixer={mixer} selected={selected.id === strip.id} onSelect={() => setSelected(strip)} onInspect={() => inspect(strip)} />)}</></ScrollView><View style={width <= 600 ? s.mobileMaster : undefined}><Fader key={output.id} strip={output} mixer={mixer} selected={selected.id === output.id} onSelect={() => setSelected(output)} onInspect={() => inspect(output)} />{width <= 600 && <View style={{ flex: 1, padding: 16 }}><Text style={s.sectionTitle}>{mix.send ? `${mix.label} master output` : 'Main stereo output'}</Text><Text style={s.description}>{mix.send ? `The master fader controls the ${mix.label} output level.` : 'The master fader controls your main LR mix.'}</Text></View>}</View></View>
+    <View style={{ flexDirection: 'row', gap: 16 }}><ScrollView horizontal style={{ flex: 1 }} contentContainerStyle={{ gap: 10, paddingBottom: 12 }} showsHorizontalScrollIndicator><>{visibleStrips.map(strip => <Fader key={`${mix.label}-${strip.id}`} strip={strip} mix={strip.group === 'Returns' && (mix.send ?? 0) > 6 ? undefined : mix} mixer={mixer} selected={selected.id === strip.id} onSelect={() => setSelected(strip)} onInspect={() => inspect(strip)} />)}</></ScrollView><View style={width <= 600 ? s.mobileMaster : undefined}><Fader key={output.id} strip={output} mixer={mixer} selected={selected.id === output.id} onSelect={() => setSelected(output)} onInspect={() => inspect(output)} /></View></View>
     </>}
   </ScrollView>
   <Modal visible={settings} transparent animationType="fade" onRequestClose={() => setSettings(false)}><View style={s.modalBackdrop}><View style={s.modal}><Text style={s.eyebrow}>SETTINGS / LOCAL NETWORK</Text><Text style={s.title}>Connect your XR18</Text><Text style={s.description}>Join the mixer’s Wi-Fi or the router it’s connected to. Enter the mixer’s IP address below.</Text><View style={s.discoveryBox}><View style={s.row}><Text style={s.body}>Automatic discovery</Text><Button text={mixer.discovering ? 'Searching…' : 'Find mixer'} disabled={Platform.OS === 'web' || mixer.discovering || mixer.status === 'connected' || mixer.status === 'connecting'} onPress={() => { void mixer.discover(); }} /></View><Text style={s.description}>{Platform.OS === 'web' ? 'Available in iOS/Android development builds. One XR18 found connects automatically; multiple results let you choose.' : mixer.discoveryMessage || 'The app searches on launch and auto-connects when one XR18 responds.'}</Text>{mixer.discovered.length > 1 && mixer.discovered.map(found => <Button key={found.host} text={`${found.name} · ${found.host}`} disabled={mixer.status === 'connecting' || mixer.status === 'connected'} onPress={() => { setHost(found.host); void mixer.connect(found.host); }} />)}</View><Text style={s.body}>Mixer IP address</Text><TextInput accessibilityLabel="Mixer IP address" value={mixer.connectedHost ?? host} onChangeText={setHost} editable={mixer.status === 'offline' || mixer.status === 'demo'} keyboardType="decimal-pad" autoCapitalize="none" autoCorrect={false} style={s.input} /><Text style={s.small}>OSC port 10024 · iOS / Android development build required</Text>{!!mixer.error && <Text style={s.error}>{mixer.error}</Text>}<View style={s.wrap}><Button text={mixer.status === 'connected' || mixer.status === 'connecting' ? 'Disconnect' : 'Connect'} active onPress={() => { if (mixer.status === 'connected' || mixer.status === 'connecting') mixer.disconnect(); else void mixer.connect(host.trim()); }} /><Button text="Demo mode" onPress={() => { mixer.demo(); setSettings(false); }} /><Button text="Close" onPress={() => setSettings(false)} /></View><Text style={s.description}>Connecting reads the current mix. Controls send changes only when you adjust them. The app disconnects when sent to the background.</Text></View></View></Modal>
@@ -134,9 +139,9 @@ function MixerApp() {
 }
 export default function App() { return <SafeAreaProvider><MixerApp /></SafeAreaProvider>; }
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: C.bg }, page: { padding: 22, paddingBottom: 40, maxWidth: 1600, width: '100%', alignSelf: 'center' },
+  root: { flex: 1, backgroundColor: C.bg }, page: { padding: 22, paddingBottom: 40, width: '100%', alignSelf: 'center' },
   topBar: { backgroundColor: C.panel, borderBottomWidth: 1, borderBottomColor: C.border },
-  topBarInner: { width: '100%', maxWidth: 1600, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', paddingLeft: 12, paddingRight: 12, gap: 8 },
+  topBarInner: { width: '100%', alignSelf: 'center', flexDirection: 'row', alignItems: 'center', paddingLeft: 12, paddingRight: 12, gap: 8 },
   compactBar: { flexDirection: 'column', gap: 0 },
   topMeta: { flexDirection: 'row', alignItems: 'center', gap: 8, width: '100%', paddingTop: 8 },
   compactTabs: { flexDirection: 'row', width: '100%' },
@@ -183,10 +188,10 @@ const s = StyleSheet.create({
   sendWell: { width: 78, height: 220, position: 'relative', marginTop: 12 },
   sendScale: { position: 'absolute', left: 0, top: 12, bottom: 12, justifyContent: 'space-between' },
   sendSlider: { width: 208, height: 40, position: 'absolute', left: -65, top: 90, transform: [{ rotate: '-90deg' }] },
-  detailsHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 14 },
-  focusLayout: { flexDirection: 'row', alignItems: 'flex-start', gap: 18, width: '100%' },
+  detailsHeader: { flexWrap: 'wrap', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 14 },
+  focusLayout: { flexDirection: 'row', alignItems: 'stretch', gap: 18, width: '100%' },
   focusFader: { width: 132, flexShrink: 0 },
-  focusControls: { flex: 1, minWidth: 320 },
-  details: { padding: 20, backgroundColor: C.panel, borderWidth: 1, borderColor: C.border, borderRadius: 12 }, sectionTitle: { color: C.text, fontSize: 17, fontWeight: '600', marginBottom: 14 }, input: { borderWidth: 1, borderColor: C.border, borderRadius: 8, backgroundColor: C.bg, color: C.text, padding: 14, minWidth: 120, marginVertical: 8 }, send: { width: 104, padding: 12, borderRadius: 8, borderWidth: 1, borderColor: C.border, backgroundColor: C.bg }, mobileMaster: { flexDirection: 'row', alignItems: 'center' },
+  focusControls: { flex: 1, minWidth: 0, width: '100%' },
+  details: { flexGrow: 1, padding: 12, backgroundColor: C.panel, borderWidth: 1, borderColor: C.border, borderRadius: 12 }, sectionTitle: { color: C.text, fontSize: 17, fontWeight: '600', marginBottom: 14 }, input: { borderWidth: 1, borderColor: C.border, borderRadius: 8, backgroundColor: C.bg, color: C.text, padding: 14, minWidth: 120, marginVertical: 8 }, send: { width: 104, padding: 12, borderRadius: 8, borderWidth: 1, borderColor: C.border, backgroundColor: C.bg }, mobileMaster: { flexDirection: 'row', alignItems: 'center' },
   error: { color: C.red, fontSize: 13, lineHeight: 20, marginVertical: 12 }, modalBackdrop: { flex: 1, backgroundColor: '#000b', justifyContent: 'center', alignItems: 'center', padding: 20 }, modal: { width: '100%', maxWidth: 480, padding: 24, borderRadius: 16, backgroundColor: C.panel, borderWidth: 1, borderColor: C.border, gap: 8 },
 });

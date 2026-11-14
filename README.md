@@ -83,3 +83,7 @@ Tests cover OSC byte layout, query and mute types, identity/string decoding, mal
 Protocol reference: [Music Tribe X AIR Remote Control Protocol](https://mediadl.musictribe.com/download/software/behringer/XAIR/X%20AIR%20Remote%20Control%20Protocol.pdf). Native networking: [react-native-udp](https://github.com/tradle/react-native-udp). Build setup: [Expo development builds](https://docs.expo.dev/develop/development-builds/introduction/).
 
 Solo buttons sit above each signal overview and use the XR18 `/-stat/solosw/NN` addresses. They stay disabled until readback arrives and highlight amber when active. Solo follows the mixer’s monitor configuration and exclusive-solo preference; demo solo changes only local state. Address mapping reference: [XR18 parameter overview](https://www.scribd.com/document/819735371/Parameters). Hardware solo behavior has not been verified here.
+
+## Responsive layout
+
+The layout follows available window dimensions, including rotation and iPad split-screen. Below 600 points, focused channel controls use the full width with a compact horizontal level strip above them. Wider windows keep the selected fader on the left. Main and send fader travel grows with window height within usable bounds; the master remains beside the scrolling channel bank. Control panels wrap, and send banks scroll independently. Browser layouts were checked at iPhone portrait/landscape and iPad portrait/landscape sizes; native safe-area and touch behavior still require device validation.
