@@ -44,7 +44,7 @@ export function useMixer() {
   }
   function demo() {
     disconnect(); setError(''); const initial: Record<string, number | string> = {};
-    [...strips, master].forEach((s, i) => { initial[`${s.id}/mix/fader`] = .65 - (i % 4) * .06; initial[`${s.id}/mix/on`] = 1; initial[`${s.id}/mix/pan`] = .5; initial[`${s.id}/config/name`] = s.label;
+    [...strips, master].forEach((s, i) => { initial[`${s.id}/mix/fader`] = .65 - (i % 4) * .06; initial[`${s.id}/mix/on`] = 1; initial[`${s.id}/mix/pan`] = .5; initial[`${s.id}/config/name`] = s.label; initial[`${s.id}/config/color`] = [2, 4, 5, 3][Math.floor(i / 4) % 4];
       outputPaths(s.id).forEach(path => { initial[path] = path.endsWith('/weight') ? .5 : path.endsWith('/lr') ? 1 : 0; });
       const solo = soloPath(s.id); if (solo) initial[solo] = 0;
       inputPaths(s.id).forEach(path => initial[path] = 0);

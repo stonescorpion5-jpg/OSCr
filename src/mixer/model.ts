@@ -13,7 +13,7 @@ export const strips: Strip[] = [
 ];
 export const master: Strip = { id: '/lr', label: 'MAIN LR', group: 'Buses', color: '#6de0bc' };
 export const queryPaths = () => [...new Set([...strips, master].flatMap(strip => {
-  const paths = [`${strip.id}/config/name`, ...['fader', 'on', 'pan'].map(p => `${strip.id}/mix/${p}`)];
+  const paths = [`${strip.id}/config/name`, `${strip.id}/config/color`, ...['fader', 'on', 'pan'].map(p => `${strip.id}/mix/${p}`)];
   paths.push(...outputPaths(strip.id), ...inputPaths(strip.id));
   if (strip.group === 'Inputs') paths.push(...['gain', 'phantom'].map(field => `/headamp/${strip.id.slice(-2)}/${field}`));
   const solo = soloPath(strip.id);

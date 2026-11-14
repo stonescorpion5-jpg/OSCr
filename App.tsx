@@ -1,3 +1,4 @@
+import { channelColor } from './src/mixer/colors';
 import React, { useState } from 'react';
 import { StyleSheet, Text, View, ScrollView, Pressable, TextInput, Modal, Platform, useWindowDimensions } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
@@ -26,7 +27,8 @@ type Mixer = ReturnType<typeof useMixer>;
 function Button({ text, onPress, active = false, disabled = false, tone }: { text: string; onPress: () => void; active?: boolean; disabled?: boolean; tone?: 'red' }) {
   return <Pressable accessibilityRole="button" disabled={disabled} onPress={onPress} style={[s.button, active && s.active, active && tone === 'red' && { backgroundColor: '#482427', borderColor: C.red }, disabled && { opacity: .35 }]}><Text style={[s.buttonText, active && { color: tone === 'red' ? C.red : C.green }]}>{text}</Text></Pressable>;
 }
-function SignalOverview({ strip, mixer, onSelect }: { strip: Strip; mixer: Mixer; onSelect: () => void }) {
+function SignalOverview({ strip: sourceStrip, mixer, onSelect }: { strip: Strip; mixer: Mixer; onSelect: () => void }) {
+  const strip = { ...sourceStrip, color: channelColor(mixer.values[`${sourceStrip.id}/config/color`], sourceStrip.color) };
   const input = strip.group === 'Inputs';
   const isReturn = strip.group === 'Returns';
   const pan = mixer.values[`${strip.id}/mix/pan`];
@@ -51,7 +53,8 @@ function SignalOverview({ strip, mixer, onSelect }: { strip: Strip; mixer: Mixer
     <View style={[s.signalRow, s.signalLastRow]}><Text style={s.signalLabel}>PAN</Text><MiniPan value={pan} color={strip.color} supported={!strip.id.startsWith('/fxsend/')} /></View>
   </Pressable>;
 }
-function Fader({ strip, mixer, selected, onSelect, onInspect, mix, compactMode = false }: { compactMode?: boolean; strip: Strip; mixer: Mixer; selected: boolean; onSelect: () => void; onInspect?: () => void; mix?: MixTab }) {
+function Fader({ strip: sourceStrip, mixer, selected, onSelect, onInspect, mix, compactMode = false }: { compactMode?: boolean; strip: Strip; mixer: Mixer; selected: boolean; onSelect: () => void; onInspect?: () => void; mix?: MixTab }) {
+  const strip = { ...sourceStrip, color: channelColor(mixer.values[`${sourceStrip.id}/config/color`], sourceStrip.color) };
   const { height, width } = useWindowDimensions();
   const compact = width < 600 && compactMode;
   const travel = Math.max(140, Math.min(600, height - 460));
