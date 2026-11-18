@@ -31,7 +31,7 @@ export default function SendsEditor({ id, label, mixer }: Props) {
   }
   if (!count) return <Text style={s.small}>No channel sends are available for this strip.</Text>;
   return <View style={s.layout}>
-    <ScrollView horizontal style={s.scroll} contentContainerStyle={s.sections}>
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.scroll} contentContainerStyle={s.sections}>
       {section('BUS SENDS', 1, 6, '#6de0bc')}
       {count > 6 && section('EFFECT SENDS', 7, 10, '#c49bff')}
     </ScrollView>
